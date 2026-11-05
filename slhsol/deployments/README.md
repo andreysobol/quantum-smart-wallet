@@ -121,3 +121,18 @@ entities capped at 100k. See [network policy](../../infra/devnet/README.md#sidec
 Then run [the actual sponsored WASM swap](../../demo/README.md). Its chain receipt
 and alternative-mempool admission establish inclusion; the deployment plan alone
 does not. Locally generated `local-*` files are disposable, Git-ignored evidence.
+
+## Browse the deployment
+
+Open [Contracts](https://altmempool.bailo.london/explorer/contracts) for every
+deployed address, its ABI and source reference. Each address links to its live
+balance, bytecode and transaction history. The
+[Chain tab](https://altmempool.bailo.london/explorer/chain) includes ordinary
+deployment transactions as well as native frame transactions. The pool ID is
+state inside PoolManager, not a separate contract address.
+
+After rebuilding the pinned Solidity projects above, refresh the public ABI
+registry with `python3 infra/devnet/export_contracts.py`. It reads only the
+public manifest and build artifacts. The registry is checked into Git and
+served at `/explorer/contracts.json`; updating it requires an explorer rebuild.
+ABI publication is not explorer source verification.

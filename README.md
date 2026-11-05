@@ -42,10 +42,15 @@ The shared deployment exposes:
 | Execution RPC | https://altmempool.bailo.london/rpc |
 | Alternative mempool | https://altmempool.bailo.london/mempool |
 | Explorer | https://altmempool.bailo.london/explorer/ |
+| Contract addresses and ABIs | https://altmempool.bailo.london/explorer/contracts |
+| Mined transaction history | https://altmempool.bailo.london/explorer/chain |
 | Frontend deployment manifest | https://altmempool.bailo.london/deployment.json |
 
 See the [verified sponsored swap](demo/evidence/shared-devnet/report.json) and
-[deployed contract addresses](slhsol/deployments/shared-devnet.json).
+[deployed contract addresses](slhsol/deployments/shared-devnet.json). Address pages
+show live balances, bytecode and mined transactions involving each address;
+contract ABIs are published from the deployment artifacts. The Pool and Activity
+tabs show alternative-mempool admission separately from chain history.
 
 ## rslh — SLH-DSA
 

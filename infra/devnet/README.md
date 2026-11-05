@@ -2,7 +2,8 @@
 
 Dedicated **chain 81411338**. The VPS runtime is a small Compose stack: pinned
 ethrex, one Lighthouse beacon, one 32-validator VC, the genuine custom validating
-sidecar, and a static explorer. It does not run Kurtosis, ClickHouse, a prover,
+sidecar, and a static explorer with a small SQLite chain index inside the RPC gateway.
+It does not run Kurtosis, ClickHouse, a prover,
 or a database service. The native envelope/opcodes are the tested ethrex
 `9aa3645d` profile, not whichever EIP draft is newest.
 
@@ -204,6 +205,23 @@ The explorer's admission/lifecycle history is an in-memory 10,000-record buffer
 and clears on sidecar restart. Persisted mempool/reputation DB does not turn that
 history into a durable index. Save important admission reports and chain receipts
 separately; pruned entries may no longer resolve through sidecar lookup APIs.
+
+The Contracts tab and `/explorer/address/0x…` pages show deployed ABIs, live
+balances, bytecode and mined history. The Chain tab includes ordinary deploys
+and type-6 frames. Its read-only index is persisted by the gateway; no separate
+database server is needed. History records top-level participants, frame targets
+and log participants; it does not claim a complete internal-call trace.
+
+The public registry `contracts.json` is copied into the static explorer build.
+Regenerate it with `python3 infra/devnet/export_contracts.py` after rebuilding
+Solidity artifacts for a changed deployment. The checked-in shared registry has
+the same chain and genesis as `slhsol/deployments/shared-devnet.json`.
+
+When changing tracked patches, preserve the old **public source cache only**:
+move `.generated/sidecar-source` aside, then rerun `prepare_source.py`. Never
+move or regenerate `.generated/bundle` or `.generated/runtime-validator` for
+a UI update. Build and restart only the explorer and gateway to retain the
+sidecar's in-memory admission history.
 
 Local checks without deploying anything: `python3 infra/devnet/test_sanity.py`.
 
