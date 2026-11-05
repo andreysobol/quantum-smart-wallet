@@ -1,0 +1,172 @@
+name: qsw-devnet
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+services:
+  ethrex:
+    image: ghcr.io/forshtat/ethrex@sha256:920295ae5496669a6f90a44431d4cbcb4703feec0e89207599fe19a251739873
+    platform: linux/amd64
+    restart: unless-stopped
+    mem_limit: 1280m
+    pids_limit: 256
+    command:
+      - --network=/network-configs/genesis.json
+      - --datadir=/data
+      - --syncmode=full
+      - --log.level=info
+      - --http.addr=0.0.0.0
+      - --http.port=8545
+      - --http.api=eth,net,web3
+      - --http.api=ethrex
+      - --http.api=debug
+      - --http.api=txpool
+      - --authrpc.addr=0.0.0.0
+      - --authrpc.port=8551
+      - --authrpc.jwtsecret=/jwt/jwtsecret
+      - --p2p.addr=0.0.0.0
+      - --p2p.port=30303
+      - --discovery.port=30303
+      - --builder.gas-limit=200000000
+    volumes:
+      - type: bind
+        source: ./.generated/bundle/genesis.json
+        target: /network-configs/genesis.json
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ./.generated/bundle/jwt.hex
+        target: /jwt/jwtsecret
+        read_only: true
+        bind: {create_host_path: false}
+      - execution-data:/data
+    expose: ["8545", "8551"]
+    networks: [devnet]
+    logging: *logging
+
+  beacon:
+    image: ethpandaops/lighthouse@sha256:dd7e92e2e9c3127750e9bff5f8a0efec686f296445a44ef5d9c1eb750e8906b0
+    platform: linux/amd64
+    restart: unless-stopped
+    mem_limit: 1024m
+    pids_limit: 192
+    depends_on: [ethrex]
+    entrypoint: ["/bin/sh", "/opt/qsw/beacon.sh"]
+    environment:
+      QSW_FEE_RECIPIENT: ${QSW_FEE_RECIPIENT:?Run configure.py first and pass .generated/runtime.env}
+    volumes:
+      - type: bind
+        source: ./.generated/bundle/consensus
+        target: /network-configs
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ./.generated/bundle/jwt.hex
+        target: /jwt/jwtsecret
+        read_only: true
+        bind: {create_host_path: false}
+      - ./beacon.sh:/opt/qsw/beacon.sh:ro
+      - consensus-data:/data
+    expose: ["5052"]
+    networks: [devnet]
+    logging: *logging
+
+  validator:
+    image: ethpandaops/lighthouse@sha256:dd7e92e2e9c3127750e9bff5f8a0efec686f296445a44ef5d9c1eb750e8906b0
+    platform: linux/amd64
+    restart: unless-stopped
+    mem_limit: 192m
+    pids_limit: 128
+    depends_on: [beacon]
+    entrypoint: ["lighthouse"]
+    command:
+      - vc
+      - --debug-level=info
+      - --testnet-dir=/network-configs
+      - --validators-dir=/validator-keys/keys
+      - --secrets-dir=/validator-keys/secrets
+      - --beacon-nodes=http://beacon:5052
+      - --suggested-fee-recipient=${QSW_FEE_RECIPIENT:?Run configure.py first}
+      - --gas-limit=200000000
+      - --builder-proposals
+    volumes:
+      - type: bind
+        source: ./.generated/bundle/consensus
+        target: /network-configs
+        read_only: true
+        bind: {create_host_path: false}
+      # configure.py seeds this private runtime copy ONCE from the sealed
+      # bundle, retaining the existing slashing DB and a genesis fingerprint.
+      - type: bind
+        source: ./.generated/runtime-validator
+        target: /validator-keys
+        bind: {create_host_path: false}
+    networks: [devnet]
+    logging: *logging
+
+  sidecar:
+    image: qsw-sidecar:2e22ff0a-pq-v1
+    platform: linux/amd64
+    build:
+      context: ./.generated/sidecar-source
+      dockerfile: Dockerfile.qsw
+      target: sidecar
+      args:
+        QSW_PUBLIC_MEMPOOL_URL: ${QSW_PUBLIC_URL:-https://altmempool.bailo.london}/mempool
+    restart: unless-stopped
+    mem_limit: 512m
+    pids_limit: 192
+    depends_on: [ethrex]
+    command:
+      - standalone
+      - --configFile=/config/config.json
+      - --dataDir=/data
+      - --api.port=14337
+      - --explorer.enable
+      - --redirectRpc
+      - --executor.bundlingMode=auto
+    volumes:
+      - type: bind
+        source: ./.generated/sidecar-config.json
+        target: /config/config.json
+        read_only: true
+        bind: {create_host_path: false}
+      - sidecar-data:/data
+    expose: ["14337"]
+    networks: [devnet]
+    healthcheck:
+      test: ["CMD", "node", "/opt/qsw/health.mjs", "http://127.0.0.1:14337/rpc"]
+      interval: 15s
+      timeout: 5s
+      start_period: 45s
+      retries: 5
+    logging: *logging
+
+  explorer:
+    image: qsw-explorer:2e22ff0a-pq-v1
+    platform: linux/amd64
+    build:
+      context: ./.generated/sidecar-source
+      dockerfile: Dockerfile.qsw
+      target: explorer
+      args:
+        QSW_PUBLIC_MEMPOOL_URL: ${QSW_PUBLIC_URL:-https://altmempool.bailo.london}/mempool
+    restart: unless-stopped
+    mem_limit: 96m
+    pids_limit: 64
+    expose: ["8080"]
+    networks: [devnet]
+    logging: *logging
+
+networks:
+  devnet:
+    name: qsw-devnet
+    external: true
+
+volumes:
+  execution-data:
+  consensus-data:
+  sidecar-data:

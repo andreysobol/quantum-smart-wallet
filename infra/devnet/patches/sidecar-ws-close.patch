@@ -1,0 +1,136 @@
+diff --git a/packages/executor/src/services/SubscriptionService.ts b/packages/executor/src/services/SubscriptionService.ts
+--- a/packages/executor/src/services/SubscriptionService.ts
++++ b/packages/executor/src/services/SubscriptionService.ts
+@@ -66,6 +66,22 @@
+     [ExecutorEvent.explorerEvents]: new Set(),
+   };
+   private listeners: { [id: string]: WebSocket } = {};
++  private trackedSockets = new WeakSet<WebSocket>();
++
++  private trackSocket(socket: WebSocket): void {
++    if (socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) {
++      throw new RpcError("Socket is closing", RpcErrorCodes.INVALID_REQUEST);
++    }
++    if (this.trackedSockets.has(socket)) return;
++    this.trackedSockets.add(socket);
++    // One handler per socket, not per subscription: unsubscribe/resubscribe on
++    // an idle long-lived socket must not accumulate close handlers either.
++    socket.once("close", () => {
++      for (const [id, owner] of Object.entries(this.listeners)) {
++        if (owner === socket) this.unsubscribe(socket, id);
++      }
++    });
++  }
+ 
+   listenPendingUserOps(socket: WebSocket): string {
+     return this.listen(socket, ExecutorEvent.pendingUserOps);
+@@ -101,6 +117,7 @@
+         RpcErrorCodes.METHOD_NOT_FOUND
+       );
+     }
++    this.trackSocket(socket);
+     const id = this.generateEventId();
+     this.listeners[id] = socket;
+     setImmediate(() => {
+@@ -124,6 +141,7 @@
+   }
+ 
+   unsubscribe(socket: WebSocket, id: string): void {
++    if (this.listeners[id] !== socket) return;
+     delete this.listeners[id];
+     for (const event in ExecutorEvent) {
+       this.events[event as ExecutorEvent].delete(id);
+@@ -176,6 +194,7 @@
+   }
+ 
+   private listen(socket: WebSocket, event: ExecutorEvent): string {
++    this.trackSocket(socket);
+     const id = this.generateEventId();
+     this.listeners[id] = socket;
+     this.events[event].add(id);
+diff --git a/packages/executor/test/services/SubscriptionService.test.ts b/packages/executor/test/services/SubscriptionService.test.ts
+--- a/packages/executor/test/services/SubscriptionService.test.ts
++++ b/packages/executor/test/services/SubscriptionService.test.ts
+@@ -1,4 +1,5 @@
+ import { describe, it, expect, vi } from "vitest";
++import EventEmitter from "node:events";
+ import {
+   ExecutorEvent,
+   ExecutorEventBus,
+@@ -8,7 +9,7 @@
+ import * as RpcErrorCodes from "@skandha/types/lib/api/errors/rpc-error-codes.js";
+ 
+ const logger = { debug: vi.fn(), error: vi.fn() } as any;
+-const socket = () => ({ readyState: 1, send: vi.fn() }) as any;
++const socket = () => Object.assign(new EventEmitter(), { readyState: 1, send: vi.fn() }) as any;
+ const nextTick = () => new Promise((r) => setImmediate(r));
+ const sent = (s: any) => s.send.mock.calls.map(([m]: [string]) => JSON.parse(m));
+ 
+@@ -112,3 +113,67 @@
+     expect((svc as any).events[ExecutorEvent.explorerEvents].size).toBe(0);
+   });
+ });
++
++
++describe("SubscriptionService socket ownership and close cleanup", () => {
++  it("cleans an idle closed socket immediately without a lifecycle event", async () => {
++    const svc = new SubscriptionService(new ExecutorEventBus(), logger, new ExplorerService());
++    const s = socket();
++    const id = svc.listenExplorerEvents(s);
++    await nextTick();
++    s.readyState = 3;
++    s.emit("close");
++    expect((svc as any).listeners[id]).toBeUndefined();
++    expect((svc as any).events[ExecutorEvent.explorerEvents].size).toBe(0);
++    expect(s.send).not.toHaveBeenCalled();
++  });
++
++  it("does not re-register a socket closed before the replay tick", async () => {
++    const explorer = new ExplorerService();
++    explorer.recordLifecycle({ txHash: "0x1", kind: "admitted" });
++    const svc = new SubscriptionService(new ExecutorEventBus(), logger, explorer);
++    const s = socket();
++    const id = svc.listenExplorerEvents(s, 0);
++    s.readyState = 3;
++    s.emit("close");
++    await nextTick();
++    expect((svc as any).listeners[id]).toBeUndefined();
++    expect((svc as any).events[ExecutorEvent.explorerEvents].size).toBe(0);
++    expect(s.send).not.toHaveBeenCalled();
++  });
++
++  it("does not let another socket unsubscribe the owner", async () => {
++    const explorer = new ExplorerService();
++    const svc = new SubscriptionService(new ExecutorEventBus(), logger, explorer);
++    const owner = socket(), other = socket();
++    const id = svc.listenExplorerEvents(owner);
++    svc.unsubscribe(other, id);
++    await nextTick();
++    explorer.recordLifecycle({ txHash: "0x1", kind: "admitted" });
++    expect(owner.send).toHaveBeenCalledTimes(1);
++    expect((svc as any).listeners[id]).toBe(owner);
++  });
++
++  it("uses only one close handler across repeated subscriptions and clears standard events too", async () => {
++    const svc = new SubscriptionService(new ExecutorEventBus(), logger, new ExplorerService());
++    const s = socket();
++    for (let i = 0; i < 30; i++) svc.unsubscribe(s, svc.listenExplorerEvents(s));
++    const ping = svc.listenPing(s);
++    const explorerId = svc.listenExplorerEvents(s);
++    await nextTick();
++    expect(s.listenerCount("close")).toBe(1);
++    s.readyState = 3;
++    s.emit("close");
++    expect((svc as any).listeners[ping]).toBeUndefined();
++    expect((svc as any).listeners[explorerId]).toBeUndefined();
++    expect((svc as any).events[ExecutorEvent.ping].size).toBe(0);
++  });
++
++  it("refuses registration when a socket is already closed", () => {
++    const svc = new SubscriptionService(new ExecutorEventBus(), logger, new ExplorerService());
++    const s = socket(); s.readyState = 3;
++    expect(() => svc.listenExplorerEvents(s)).toThrow("Socket is closing");
++    expect(() => svc.listenPing(s)).toThrow("Socket is closing");
++    expect(Object.keys((svc as any).listeners)).toHaveLength(0);
++  });
++});

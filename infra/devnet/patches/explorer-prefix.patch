@@ -1,0 +1,22 @@
+diff --git a/packages/devnet-ui/src/app.tsx b/packages/devnet-ui/src/app.tsx
+--- a/packages/devnet-ui/src/app.tsx
++++ b/packages/devnet-ui/src/app.tsx
+@@ -212,7 +212,7 @@ const routeTree = rootRoute.addChildren([poolRoute, activityRoute, peersRoute, reputationRoute, txRoute]);
+ 
+ export function createAppRouter(history?: RouterHistory) {
+-  return createRouter(history ? { routeTree, history } : { routeTree });
++  return createRouter(history ? { routeTree, history, basepath: "/explorer" } : { routeTree, basepath: "/explorer" });
+ }
+ 
+ declare module "@tanstack/react-router" {
+diff --git a/packages/devnet-ui/vite.config.ts b/packages/devnet-ui/vite.config.ts
+--- a/packages/devnet-ui/vite.config.ts
++++ b/packages/devnet-ui/vite.config.ts
+@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
+ import tailwindcss from "@tailwindcss/vite";
+ 
+ export default defineConfig({
++  base: "/explorer/",
+   plugins: [react(), tailwindcss()],
+   test: {
+     environment: "jsdom",

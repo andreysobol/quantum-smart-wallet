@@ -1,0 +1,13 @@
+name: quantum-smart-wallet-shared-devnet
+chain_id: 81411338
+execution_profile: ethrex-9aa3645d
+unstaked_entity_verification_gas: 100000
+actual_staked_sender_verification_gas: 2500000
+minimum_stake_wei: 10000000000000000
+minimum_unstake_delay_seconds: 86400
+withdrawal_must_not_be_initiated: true
+whitelist_does_not_grant_extra_gas: true
+shared_entity_addresses_aggregate_budgets: true
+signature_validation_cost_charged_to_sender: true
+leading_expiry_frames_supported: false
+all_original_crypto_trace_storage_balance_checks: retained

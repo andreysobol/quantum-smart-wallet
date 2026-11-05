@@ -1,0 +1,501 @@
+diff --git a/packages/executor/src/services/UserOpValidation/utils/validationPrefix.ts b/packages/executor/src/services/UserOpValidation/utils/validationPrefix.ts
+index 8a34f88..3716f01 100644
+--- a/packages/executor/src/services/UserOpValidation/utils/validationPrefix.ts
++++ b/packages/executor/src/services/UserOpValidation/utils/validationPrefix.ts
+@@ -9,6 +9,14 @@ import { getAddress } from "viem";
+  */
+ export const MAX_VERIFY_GAS = BigInt(100_000);
+ 
++/** Custom PQ mempool allowance; only an actually staked tx.sender earns it. */
++export const MAX_STAKED_SENDER_VERIFY_GAS = BigInt(2_500_000);
++
++export interface VerificationBudgetPolicy {
++  /** Derived from the registry by the validator, never from transaction input. */
++  stakedSender: boolean;
++}
++
+ /**
+  * EIP-8141's intrinsic cost per signature, by scheme - not stated in
+  * erc-7562.md (that spec states the rule, FRA-040, that this cost counts
+@@ -246,10 +254,27 @@ export type StructuralRulesResult = { valid: true } | { valid: false; reason: st
+  * frame completes") is a simulation-performance recommendation, not a
+  * rejection condition on the transaction's validity — it doesn't reject
+  * anything, so it is intentionally not implemented here.
++ *
++ * Without budgetPolicy, item 6 retains the canonical aggregate 100k limit.
++ * The local PQ mempool opts into per-address execution budgets: 100k per
++ * entity, or 2.5m only for an on-chain-staked tx.sender. State, shape and
++ * atomicity restrictions remain identical in either mode.
+  */
+-export function validateStructuralRules(tx: FrameTransaction, prefix: ValidationPrefixMatch): StructuralRulesResult {
++export function validateStructuralRules(
++  tx: FrameTransaction,
++  prefix: ValidationPrefixMatch,
++  budgetPolicy?: VerificationBudgetPolicy
++): StructuralRulesResult {
+   const prefixFrameIndices = prefix.frames.map((f) => f.frameIndex);
+   const lastPrefixIndex = Math.max(...prefixFrameIndices);
++  const sender = resolvedTarget(null, tx.sender);
++  const ownerByFrame = new Map(
++    prefix.frames.map(({ frameIndex }) => [
++      frameIndex,
++      resolvedTarget(tx.frames[frameIndex].target, tx.sender),
++    ])
++  );
++  const entityExecution = new Map<string, bigint>();
+ 
+   // Items 3 (target half), 5 and 6 all scan the same full-prefix range
+   // tx.frames[0..lastPrefixIndex], including any leading expiry_verify
+@@ -277,6 +302,12 @@ export function validateStructuralRules(tx: FrameTransaction, prefix: Validation
+ 
+     executionSum += frame.limits.execution;
+     stateSum += frame.limits.state;
++    // A pre_verify belongs to its following approving entity. A leading
++    // expiry frame is absent from prefix.frames; charge it to the sender so
++    // it cannot escape accounting. Normalize by ADDRESS, not by role, because
++    // the same entity can appear repeatedly or act as both sender and payer.
++    const owner = ownerByFrame.get(i) ?? sender;
++    entityExecution.set(owner, (entityExecution.get(owner) ?? BigInt(0)) + frame.limits.execution);
+   }
+ 
+   // Item 6 (FRA-040): the sum of the validation prefix's `limits.execution`,
+@@ -285,7 +316,23 @@ export function validateStructuralRules(tx: FrameTransaction, prefix: Validation
+   // per-scheme cost comes from.
+   const sigCost = signatureVerificationCost(tx);
+   const totalVerifyGas = executionSum + sigCost;
+-  if (totalVerifyGas > MAX_VERIFY_GAS) {
++  if (budgetPolicy) {
++    // Protocol signature work belongs to tx.sender, including signatures
++    // supplied for a different payer. A staked sender grants no extra budget
++    // to that payer or to a distinct factory.
++    entityExecution.set(sender, (entityExecution.get(sender) ?? BigInt(0)) + sigCost);
++    for (const [entity, gas] of entityExecution) {
++      const limit = entity === sender && budgetPolicy.stakedSender
++        ? MAX_STAKED_SENDER_VERIFY_GAS
++        : MAX_VERIFY_GAS;
++      if (gas > limit) {
++        return {
++          valid: false,
++          reason: `entity ${entity} verification gas ${gas} exceeds MAX_VERIFY_GAS ${limit}`,
++        };
++      }
++    }
++  } else if (totalVerifyGas > MAX_VERIFY_GAS) {
+     return {
+       valid: false,
+       reason: `validation prefix execution gas sum ${executionSum} + signature-verification cost ${sigCost} = ${totalVerifyGas} exceeds MAX_VERIFY_GAS ${MAX_VERIFY_GAS}`,
+diff --git a/packages/executor/src/services/UserOpValidation/validators/frameTx.ts b/packages/executor/src/services/UserOpValidation/validators/frameTx.ts
+index ce5ef15..226dc15 100644
+--- a/packages/executor/src/services/UserOpValidation/validators/frameTx.ts
++++ b/packages/executor/src/services/UserOpValidation/validators/frameTx.ts
+@@ -27,6 +27,8 @@ import {
+   Frame,
+   FrameTransaction,
+   ENTRY_POINT,
++  FRAME_MODE,
++  APPROVE_SCOPE,
+ } from "@skandha/types/lib/contracts/FrameTx.js";
+ import {
+   EXPLORER_RULES,
+@@ -87,6 +89,7 @@ const bannedOpCodes = new Set([
+ ]);
+ 
+ export type EntityRole = "sender" | "payer" | "factory";
++type RoleStakes = Partial<Record<EntityRole, StakeInfo & { addr: Hex }>>;
+ 
+ /**
+  * Maps a validation-prefix role to the `IWhitelistedEntities` key for the
+@@ -295,6 +298,19 @@ export class FrameTxValidationService {
+     simResult: EthrexSimulateFrameTransactionResult,
+     collector: CheckCollector = new CheckCollector()
+   ): Promise<FrameTxValidationResult> {
++    // This temporary PQ mempool does not support expiry frames. The shared
++    // recognizer omits them from its entity-role list, so admitting one here
++    // would leave its trace outside the opcode/storage compliance loop.
++    const leading = tx.frames[0];
++    if (leading?.mode === FRAME_MODE.VERIFY && leading.flags === APPROVE_SCOPE.NONE) {
++      throw collector.failed(
++        EXPLORER_RULES.PREFIX,
++        new RpcError(
++          "expiry validation frames are not supported by this custom PQ mempool",
++          RpcErrorCodes.INVALID_OPCODE
++        )
++      );
++    }
+     const prefix = recognizeValidationPrefix(tx.frames, tx.sender);
+     if (prefix == null) {
+       throw collector.failed(
+@@ -307,7 +323,20 @@ export class FrameTxValidationService {
+     }
+     collector.pass(EXPLORER_RULES.PREFIX);
+ 
+-    const structural = validateStructuralRules(tx, prefix);
++    // Registry state is read once per entity and reused by opcode/storage
++    // checks below. Whitelisting and ReputationService.checkStake cannot buy
++    // this custom mempool's higher unpaid-computation allowance.
++    const roleStakes = await this.resolveRoleStakes(tx, prefix);
++    const senderStake = Object.values(roleStakes).find(
++      (info) => info?.addr.toLowerCase() === tx.sender.toLowerCase()
++    );
++    const requiredDelay = Math.max(this.networkConfig.minUnstakeDelay ?? 0, 86_400);
++    const stakedSender = senderStake != null &&
++      BigInt(senderStake.stake) > BigInt(0) &&
++      BigInt(senderStake.stake) >= this.networkConfig.minStake &&
++      BigInt(senderStake.unstakeDelaySec) >= BigInt(requiredDelay) &&
++      BigInt(senderStake.withdrawTime) === BigInt(0);
++    const structural = validateStructuralRules(tx, prefix, { stakedSender });
+     if (!structural.valid) {
+       throw collector.failed(
+         EXPLORER_RULES.STRUCTURE,
+@@ -445,6 +474,7 @@ export class FrameTxValidationService {
+       tx,
+       prefix,
+       lastPrefixIndex,
++      roleStakes,
+       collector
+     );
+     return {
+@@ -464,12 +494,17 @@ export class FrameTxValidationService {
+   private async resolveRoleStakes(
+     tx: FrameTransaction,
+     prefix: ValidationPrefixMatch
+-  ): Promise<Partial<Record<EntityRole, StakeInfo & { addr: Hex }>>> {
+-    const roleStakes: Partial<Record<EntityRole, StakeInfo & { addr: Hex }>> =
+-      {};
++  ): Promise<RoleStakes> {
++    const roleStakes: RoleStakes = {};
++    const deposits = new Map<string, Omit<StakeInfo, "addr">>();
+     for (const { frame, role } of prefix.frames) {
+       const addr = resolveRoleAddr(role, frame, tx.sender);
+-      const deposit = await this.stakingRegistryService.getDepositInfo(addr);
++      const key = addr.toLowerCase();
++      let deposit = deposits.get(key);
++      if (!deposit) {
++        deposit = await this.stakingRegistryService.getDepositInfo(addr);
++        deposits.set(key, deposit);
++      }
+       roleStakes[role] = {
+         addr,
+         stake: deposit.stake,
+@@ -518,6 +553,7 @@ export class FrameTxValidationService {
+     tx: FrameTransaction,
+     prefix: ValidationPrefixMatch,
+     lastPrefixIndex: number,
++    roleStakes: RoleStakes,
+     collector: CheckCollector
+   ): Promise<Omit<FrameTxValidationResult, "maxCost">> {
+     let satisfiesStandardMempool = true; // false if some entity is in whitelist
+@@ -579,7 +615,6 @@ export class FrameTxValidationService {
+     }
+     collector.pass(EXPLORER_RULES.EXECUTION);
+ 
+-    const roleStakes = await this.resolveRoleStakes(tx, prefix);
+     const hasFactory = prefix.frames.some((f) => f.role === "factory");
+     // Memoizes ReputationService.checkStake per address for the
+     // duration of this validate() call.
+diff --git a/packages/executor/test/services/UserOpValidation/utils/validationPrefix.test.ts b/packages/executor/test/services/UserOpValidation/utils/validationPrefix.test.ts
+index d186c59..565dbe2 100644
+--- a/packages/executor/test/services/UserOpValidation/utils/validationPrefix.test.ts
++++ b/packages/executor/test/services/UserOpValidation/utils/validationPrefix.test.ts
+@@ -1,9 +1,11 @@
+ import { describe, it, expect } from "vitest";
++import { getAddress } from "viem";
+ import {
+   recognizeValidationPrefix,
+   validateStructuralRules,
+   MAX_VERIFY_GAS,
+   MAX_VERIFY_STATE_GAS,
++  MAX_STAKED_SENDER_VERIFY_GAS,
+ } from "../../../../src/services/UserOpValidation/utils/validationPrefix.js";
+ import { FRAME_MODE, APPROVE_SCOPE, ATOMIC_BATCH_FLAG, Frame, FrameTransaction, SIG_SCHEME, SignatureEntry } from "@skandha/types/lib/contracts/FrameTx.js";
+ 
+@@ -15,6 +17,132 @@ const verifyFrame = (flags: number): Frame => ({
+   value: 0n,
+   data: "0x" as const,
+ });
++
++describe("custom PQ mempool declared verification budgets", () => {
++  const arbitrarySignature: SignatureEntry = {
++    scheme: SIG_SCHEME.ARBITRARY,
++    signer: "0x",
++    msg: "0x",
++    signature: "0x",
++  };
++
++  function check(frames: Frame[], stakedSender: boolean, signatures = [arbitrarySignature]) {
++    const tx = { ...baseTx(frames), signatures };
++    const prefix = recognizeValidationPrefix(frames, tx.sender);
++    expect(prefix).not.toBeNull();
++    return validateStructuralRules(tx, prefix!, { stakedSender });
++  }
++
++  const budget = (frame: Frame, execution: bigint): Frame => ({
++    ...frame,
++    limits: { ...frame.limits, execution },
++  });
++
++  it("accepts a 2.4m staked sender and rejects the same unstaked sender", () => {
++    const frames = [budget(verifyFrame(APPROVE_SCOPE.EXECUTION_AND_PAYMENT), 2_400_000n)];
++    expect(check(frames, true)).toEqual({ valid: true });
++    expect(check(frames, false)).toMatchObject({ valid: false, reason: expect.stringContaining("100000") });
++  });
++
++  it("keeps the original aggregate 100k behavior when no custom policy is supplied", () => {
++    const frames = [
++      budget(verifyFrame(APPROVE_SCOPE.EXECUTION), 70_000n),
++      budget({ ...verifyFrame(APPROVE_SCOPE.PAYMENT), target: PAYER }, 70_000n),
++    ];
++    const tx = baseTx(frames);
++    const prefix = recognizeValidationPrefix(frames, tx.sender)!;
++    expect(validateStructuralRules(tx, prefix)).toMatchObject({ valid: false });
++    expect(check(frames, false)).toEqual({ valid: true });
++  });
++
++  it("counts intrinsic signature cost at the 2.5m sender boundary", () => {
++    expect(check([budget(verifyFrame(APPROVE_SCOPE.EXECUTION_AND_PAYMENT), MAX_STAKED_SENDER_VERIFY_GAS - 100n)], true))
++      .toEqual({ valid: true });
++    expect(check([budget(verifyFrame(APPROVE_SCOPE.EXECUTION_AND_PAYMENT), MAX_STAKED_SENDER_VERIFY_GAS - 99n)], true))
++      .toMatchObject({ valid: false, reason: expect.stringContaining("2500001") });
++  });
++
++  it("never grants the sender's elevated budget to a distinct payer", () => {
++    const frames = [
++      budget(verifyFrame(APPROVE_SCOPE.EXECUTION), 2_400_000n),
++      budget({ ...verifyFrame(APPROVE_SCOPE.PAYMENT), target: PAYER }, 100_001n),
++    ];
++    expect(check(frames, true)).toMatchObject({ valid: false, reason: expect.stringContaining(PAYER) });
++  });
++
++  it("never grants the sender's elevated budget to a distinct factory", () => {
++    const frames = [
++      budget(deployFrame(), 100_001n),
++      budget(verifyFrame(APPROVE_SCOPE.EXECUTION_AND_PAYMENT), 2_400_000n),
++    ];
++    expect(check(frames, true)).toMatchObject({ valid: false, reason: expect.stringContaining("3333333333333333333333333333333333333333") });
++  });
++
++  it("aggregates payer pre_verify and approval frames", () => {
++    const frames = [
++      budget(verifyFrame(APPROVE_SCOPE.EXECUTION), 2_400_000n),
++      budget(preVerifyFrame(PAYER), 60_000n),
++      budget({ ...verifyFrame(APPROVE_SCOPE.PAYMENT), target: PAYER }, 40_001n),
++    ];
++    expect(check(frames, true)).toMatchObject({ valid: false, reason: expect.stringContaining("100001") });
++  });
++
++  it("aggregates sender pre_verify and approval frames under one 2.5m cap", () => {
++    const frames = [
++      budget(preVerifyFrame(null), 1_300_000n),
++      budget(verifyFrame(APPROVE_SCOPE.EXECUTION_AND_PAYMENT), 1_200_000n),
++    ];
++    expect(check(frames, true)).toMatchObject({ valid: false, reason: expect.stringContaining("2500100") });
++  });
++
++  it("aggregates a shared sender/payer address instead of granting one budget per role", () => {
++    const frames = [
++      budget(verifyFrame(APPROVE_SCOPE.EXECUTION), 1_300_000n),
++      budget({ ...verifyFrame(APPROVE_SCOPE.PAYMENT), target: SENDER }, 1_200_000n),
++    ];
++    expect(check(frames, true)).toMatchObject({ valid: false, reason: expect.stringContaining("2500100") });
++  });
++
++  it("normalizes different casing of the same sender/payer address", () => {
++    const sender = "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd" as const;
++    const frames = [
++      budget(verifyFrame(APPROVE_SCOPE.EXECUTION), 1_300_000n),
++      budget({ ...verifyFrame(APPROVE_SCOPE.PAYMENT), target: getAddress(sender) }, 1_200_000n),
++    ];
++    const tx = { ...baseTx(frames), sender, signatures: [arbitrarySignature] };
++    const prefix = recognizeValidationPrefix(frames, sender)!;
++    expect(validateStructuralRules(tx, prefix, { stakedSender: true }))
++      .toMatchObject({ valid: false, reason: expect.stringContaining("2500100") });
++  });
++
++  it("charges a leading expiry frame to the sender", () => {
++    const expiry = budget(verifyFrame(APPROVE_SCOPE.NONE), 1_000n);
++    const verify = budget(verifyFrame(APPROVE_SCOPE.EXECUTION_AND_PAYMENT), 2_499_000n);
++    expect(check([verify], true)).toEqual({ valid: true });
++    expect(check([expiry, verify], true)).toMatchObject({ valid: false, reason: expect.stringContaining("2500100") });
++  });
++
++  it("charges payer protocol signatures to the sender rather than the payer", () => {
++    const frames = [
++      budget(verifyFrame(APPROVE_SCOPE.EXECUTION), 2_497_200n),
++      budget({ ...verifyFrame(APPROVE_SCOPE.PAYMENT), target: PAYER }, 100_000n),
++    ];
++    const secp: SignatureEntry = { ...arbitrarySignature, scheme: SIG_SCHEME.SECP256K1, signer: PAYER };
++    expect(check(frames, true, [arbitrarySignature, secp]))
++      .toMatchObject({ valid: false, reason: expect.stringContaining("2500100") });
++  });
++
++  it("still enforces state and atomic-prefix restrictions with a staked sender", () => {
++    const excessiveState = verifyFrame(APPROVE_SCOPE.EXECUTION_AND_PAYMENT);
++    excessiveState.limits.state = MAX_VERIFY_STATE_GAS + 1n;
++    expect(check([excessiveState], true)).toMatchObject({ valid: false, reason: expect.stringContaining("state gas") });
++    const atomic = { ...verifyFrame(APPROVE_SCOPE.EXECUTION_AND_PAYMENT), flags: APPROVE_SCOPE.EXECUTION_AND_PAYMENT | ATOMIC_BATCH_FLAG };
++    const tx = baseTx([atomic]);
++    const prefix = { payerFrameIndex: 0, frames: [{ frame: atomic, frameIndex: 0, role: "payer" as const }] };
++    expect(validateStructuralRules(tx, prefix, { stakedSender: true }))
++      .toMatchObject({ valid: false, reason: expect.stringContaining("ATOMIC_BATCH_FLAG") });
++  });
++});
+ const deployFrame = (): Frame => ({
+   mode: FRAME_MODE.DEFAULT,
+   flags: 0,
+diff --git a/packages/executor/test/services/UserOpValidation/validators/frameTx.test.ts b/packages/executor/test/services/UserOpValidation/validators/frameTx.test.ts
+index 20bf477..a7d7403 100644
+--- a/packages/executor/test/services/UserOpValidation/validators/frameTx.test.ts
++++ b/packages/executor/test/services/UserOpValidation/validators/frameTx.test.ts
+@@ -12,6 +12,7 @@ import {
+   APPROVE_SCOPE,
+   Frame,
+   FrameTransaction,
++  SIG_SCHEME,
+ } from "@skandha/types/lib/contracts/FrameTx.js";
+ 
+ // Addresses are digit-only so viem's getAddress() checksumming is a no-op
+@@ -167,6 +168,113 @@ const fakeLogger = () => ({ debug: vi.fn(), error: vi.fn() }) as any;
+ 
+ const ENTRY_POINT = "0x00000000000000000000000000000000000000aa" as const;
+ 
++describe("custom PQ mempool stake eligibility", () => {
++  const activeDeposit = { stake: 10_000_000_000n, unstakeDelaySec: 86_400, withdrawTime: 0n };
++
++  function serviceWithDeposit(
++    deposit = activeDeposit,
++    config = fakeNetworkConfig(),
++    stakedAddress: `0x${string}` = SENDER,
++    reputation = fakeReputationService()
++  ) {
++    const registry = {
++      getDepositInfo: vi.fn(async (address: string) => address.toLowerCase() === stakedAddress.toLowerCase()
++        ? deposit
++        : { stake: 0n, unstakeDelaySec: 0, withdrawTime: 0n }),
++    } as unknown as StakingRegistryService;
++    return {
++      registry,
++      service: new FrameTxValidationService(registry, reputation, config, fakeLogger()),
++    };
++  }
++
++  function pqTx(frames = [selfVerifyFrame()]) {
++    frames[0] = { ...frames[0], limits: { execution: 2_400_000n, state: 0n } };
++    return {
++      ...baseTx(frames),
++      signatures: [{ scheme: SIG_SCHEME.ARBITRARY, signer: "0x" as const, msg: "0x" as const, signature: "0x" as const }],
++    };
++  }
++
++  it("accepts the declared 2.4m budget only with active registry stake, and reads it once", async () => {
++    const { service, registry } = serviceWithDeposit();
++    await expect(service.validate(pqTx(), fakeEthrexResult([ethrexFrame()])))
++      .resolves.toMatchObject({ mempoolMembership: { [STANDARD_MEMPOOL_ID]: true } });
++    expect(registry.getDepositInfo).toHaveBeenCalledTimes(1);
++  });
++
++  it("rejects a leading flags-0 VERIFY even when its target and trace look benign", async () => {
++    const { service, registry } = serviceWithDeposit();
++    const tx = baseTx([{ ...expiryVerifyFrame(), target: OTHER_CONTRACT }, selfVerifyFrame()]);
++    const collector = new CheckCollector();
++    await expect(service.validate(tx, fakeEthrexResult([
++      ethrexFrame({ to: OTHER_CONTRACT }), ethrexFrame(),
++    ]), collector)).rejects.toMatchObject({
++      message: expect.stringContaining("expiry validation frames are not supported"),
++    });
++    expect(registry.getDepositInfo).not.toHaveBeenCalled();
++    expect(collector.toChecks().find((check) => check.rule === "prefix"))
++      .toMatchObject({ verdict: "fail" });
++  });
++
++  it.each([
++    ["zero stake", { ...activeDeposit, stake: 0n }],
++    ["below configured stake", { ...activeDeposit, stake: 1n }],
++    ["less than one day", { ...activeDeposit, unstakeDelaySec: 86_399 }],
++    ["withdrawal initiated", { ...activeDeposit, withdrawTime: 1n }],
++  ])("rejects elevated verification for %s", async (_label, deposit) => {
++    const { service } = serviceWithDeposit(deposit);
++    await expect(service.validate(pqTx(), fakeEthrexResult([ethrexFrame()])))
++      .rejects.toMatchObject({ message: expect.stringContaining("100000") });
++  });
++
++  it("requires positive stake even if the configured minimum is zero", async () => {
++    const config = { ...fakeNetworkConfig(), minStake: 0n };
++    const { service } = serviceWithDeposit({ ...activeDeposit, stake: 0n }, config);
++    await expect(service.validate(pqTx(), fakeEthrexResult([ethrexFrame()])))
++      .rejects.toMatchObject({ message: expect.stringContaining("100000") });
++  });
++
++  it("honors a configured delay greater than one day", async () => {
++    const config = { ...fakeNetworkConfig(), minUnstakeDelay: 172_800 };
++    const { service } = serviceWithDeposit(activeDeposit, config);
++    await expect(service.validate(pqTx(), fakeEthrexResult([ethrexFrame()])))
++      .rejects.toMatchObject({ message: expect.stringContaining("100000") });
++  });
++
++  it("does not let a whitelist or ReputationService stake bypass grant the higher budget", async () => {
++    const config = {
++      ...fakeNetworkConfig(),
++      whitelistedEntities: { account: [SENDER], paymaster: [SENDER], factory: [], external: [] },
++      relayOpsWithWhitelistedEntities: true,
++    } as unknown as NetworkConfig;
++    const { service } = serviceWithDeposit(
++      { stake: 0n, unstakeDelaySec: 0, withdrawTime: 0n },
++      config,
++      SENDER,
++      fakeReputationService(undefined, SENDER)
++    );
++    await expect(service.validate(pqTx(), fakeEthrexResult([ethrexFrame()])))
++      .rejects.toMatchObject({ message: expect.stringContaining("100000") });
++  });
++
++  it("does not treat a distinct staked payer as a staked sender", async () => {
++    const { service } = serviceWithDeposit(activeDeposit, fakeNetworkConfig(), PAYER);
++    const tx = pqTx([onlyVerifyFrame(), payFrame(PAYER)]);
++    await expect(service.validate(tx, fakeEthrexResult([ethrexFrame(), ethrexFrame({ to: PAYER })])))
++      .rejects.toMatchObject({ message: expect.stringContaining("100000") });
++  });
++
++  it("reuses one registry result for repeated frames and roles of the same entity", async () => {
++    const { service, registry } = serviceWithDeposit();
++    const tx = baseTx([preVerifyFrame(SENDER), onlyVerifyFrame(), payFrame(SENDER)]);
++    await expect(service.validate(tx, fakeEthrexResult([
++      ethrexFrame(), ethrexFrame(), ethrexFrame(),
++    ]))).resolves.toMatchObject({ mempoolMembership: { [STANDARD_MEMPOOL_ID]: true } });
++    expect(registry.getDepositInfo).toHaveBeenCalledTimes(1);
++  });
++});
++
+ function emptyAccessedSlots() {
+   return { reads: {}, writes: {}, transientReads: {}, transientWrites: {} };
+ }
+@@ -510,15 +618,10 @@ describe("FrameTxValidationService", () => {
+       });
+     });
+ 
+-    it("handles a leading expiry_verify frame AND a trailing post-prefix body frame together (both frameIndex-shifting effects at once)", async () => {
+-      // [expiry_verify, only_verify, pay, post_op]: the leading expiry_verify
+-      // frame shifts prefix.frames' role frameIndex values by 1 relative to
+-      // array position (sender at frameIndex 1, payer at frameIndex 2,
+-      // lastPrefixIndex = 2), while the trailing post_op frame (frameIndex 3,
+-      // DEFAULT-mode, from: ENTRY_POINT like every other frame here) must
+-      // still be excluded from the top-level-call count. Proves the fix
+-      // isn't only correct for the simple lastPrefixIndex-equals-array-
+-      // length-minus-2 case above.
++    it("rejects a leading expiry_verify frame even with a trailing body frame", async () => {
++      // The temporary custom PQ policy rejects expiry frames before role
++      // alignment: the shared recognizer omits the expiry frame from its
++      // role list, so its trace would otherwise escape compliance checks.
+       const root0 = ethrexFrame({ from: ENTRY_POINT, to: SENDER }); // expiry_verify's own level, frameIndex 0 - never consulted by role
+       const root1 = ethrexFrame({ from: ENTRY_POINT, to: SENDER }); // only_verify (sender role, frameIndex 1)
+       const root2 = ethrexFrame({ from: ENTRY_POINT, to: PAYER }); // pay (payer role, frameIndex 2)
+@@ -539,8 +642,8 @@ describe("FrameTxValidationService", () => {
+         postOpFrame(OTHER_CONTRACT),
+       ]);
+ 
+-      await expect(service.validate(tx, simResult)).resolves.toMatchObject({
+-        mempoolMembership: { [STANDARD_MEMPOOL_ID]: true },
++      await expect(service.validate(tx, simResult)).rejects.toMatchObject({
++        message: expect.stringContaining("expiry validation frames are not supported"),
+       });
+     });
+ 
