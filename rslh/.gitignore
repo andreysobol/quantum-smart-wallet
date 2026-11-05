@@ -1,0 +1,6 @@
+/target/
+/.lake/
+**/__pycache__/
+*.pem
+*.der
+*.key
