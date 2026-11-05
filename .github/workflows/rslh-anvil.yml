@@ -1,0 +1,69 @@
+name: rslh-anvil
+
+permissions: {}
+
+on:
+  push:
+    paths:
+      - "rslh/**"
+      - "slhsol/**"
+      - "eval/**"
+      - ".github/workflows/rslh-anvil.yml"
+  pull_request:
+    paths:
+      - "rslh/**"
+      - "slhsol/**"
+      - "eval/**"
+      - ".github/workflows/rslh-anvil.yml"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  anvil-onchain:
+    name: On-chain verification (eval_anvil.sh)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustc --version
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Show tool versions
+        run: |
+          forge --version
+          anvil --version
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rslh/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('rslh/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Sign with rslh, verify on anvil
+        run: bash eval/eval_anvil.sh -n 10
+
+      - name: Upload failing cases
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-anvil-failures
+          path: eval/eval_failures/
+          if-no-files-found: ignore
