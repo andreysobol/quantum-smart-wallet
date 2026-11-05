@@ -1,10 +1,16 @@
-name: CI
+name: slhsol
 
 permissions: {}
 
 on:
   push:
+    paths:
+      - "slhsol/**"
+      - ".github/workflows/slhsol.yml"
   pull_request:
+    paths:
+      - "slhsol/**"
+      - ".github/workflows/slhsol.yml"
   workflow_dispatch:
 
 jobs:
@@ -13,6 +19,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    defaults:
+      run:
+        working-directory: slhsol
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
