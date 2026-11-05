@@ -1,111 +1,123 @@
 # Deploying the shared QuantumGuard demo
 
-The checked-in deployment program is `script/DeployDemo.s.sol`. Its target is the
-dedicated chain **81411338**. Provision the sealed network first using
-[infra/devnet](../../infra/devnet/README.md); Hegota activation, matching native
-profile and advancing blocks are prerequisites. An HTTP response alone is not
-readiness evidence.
+Use `demo/deploy.py` for the dedicated **chain 81411338**. Forge produces the
+transaction plan; the wrapper sends it sequentially using the live ethrex gas
+schedule. Provision [the sealed network](../../infra/devnet/README.md) first and
+wait for the required native profile/forks and advancing blocks. These instructions
+do not claim that an unmined VPS transaction succeeded.
 
-## Pinned build
+## Build
 
-From the repository root:
+From the repository root, with Git, Python 3.10+, Rust and Foundry installed:
 
 ```sh
 git submodule update --init --recursive
 bash slhsol/script/build_permit2.sh
 forge build --root slhsol
 forge test --root slhsol
+python3 -m unittest discover -s demo -p test_deploy.py -v
 ```
 
-Permit2 pins Solidity **0.8.17**, so its unchanged official project is built
-separately. DeployDemo loads `lib/permit2/out/Permit2.sol/Permit2.json` and broadcasts
-CREATE with that artifact. The main project pins **0.8.26**, Cancun and via IR,
-matching PoolManager/PositionManager's compiler requirements and UniversalRouter's
-code-generation requirements. Do not combine concrete Permit2 source into the
-main compilation unit.
+Permit2 pins **Solidity 0.8.17**, so its unchanged official project is built
+separately. The main v4 project pins **0.8.26**, Cancun and via IR.
+`DeployDemo.s.sol` loads the separate Permit2 artifact when planning its CREATE;
+concrete Permit2 source cannot be combined with the v4 compilation unit.
 
-The locked UniversalRouter 2.2.0 dependency graph supplies the official PoolManager,
-PositionManager, router, Permit2, V4Quoter and StateView. The wrapping token is the
-pinned **Solmate WETH**, compatible with IWETH9, explicitly not mainnet WETH9
-bytecode. PositionManager uses a zero metadata descriptor: liquidity/NFT ownership
-work; `tokenURI()` metadata is unavailable.
+The locked dependency graph supplies official PoolManager, PositionManager,
+UniversalRouter, Permit2, V4Quoter and StateView. The wrapping token is pinned
+**Solmate WETH**, IWETH9-compatible, not mainnet WETH9 bytecode. PositionManager's
+zero metadata descriptor leaves `tokenURI()` unavailable; ownership and liquidity
+operations remain functional.
 
-## Public deployment inputs
+## Sequential deployment
 
-Use the matching prefunded operator signer through Foundry's normal signer
-options. The script itself never reads a private key. Public variables:
+Keep the matching prefunded operator JSON file outside Git, mode `0600`, with
+`address` and `private_key` fields. It must belong to the signer funded in the
+sealed genesis. Set `QSW_DEPLOYER_KEY_FILE` to that path and `QSW_GENESIS_HASH` to
+the expected block-zero hash retained with the network record.
 
-| Variable | Meaning |
+```sh
+python3 demo/deploy.py \
+  --rpc https://altmempool.bailo.london/rpc \
+  --key-file "$QSW_DEPLOYER_KEY_FILE" \
+  --genesis-hash "$QSW_GENESIS_HASH" \
+  --manifest slhsol/deployments/shared-devnet.json
+```
+
+| Option | Meaning |
 | --- | --- |
-| `DEMO_DEPLOYER` | Prefunded signer; becomes protocol-fee owner, DemoUSDC minter and LP NFT owner |
-| `DEMO_STAKING_REGISTRY` | Actual registry with deployed code; sealed demo genesis uses `0xd51c04d7a0b01124e84de152f4e56d9eecb22d2f` |
-| `DEMO_GENESIS_HASH` | Actual `eth_getBlockByNumber("0x0")` hash from the target network |
-| `DEMO_OUTPUT` | Set to the absolute path of `slhsol/deployments/shared-devnet.json`; default is `deployments/demo.json` |
-| `DEMO_NATIVE_PROFILE` | Public implementation/profile description; default identifies ethrex `9aa3645d` |
-| `DEMO_VERIFIER` | Optional existing trusted verifier; otherwise deploy the repository's SlhDsaVerifier |
-| `DEMO_PERMIT2` | Optional existing official Permit2; otherwise deploy the separately built artifact |
+| `--rpc` | Live execution RPC; must report chain 81411338 and ethrex `9aa3645d` |
+| `--key-file` | Private operator JSON; its address is checked against the key |
+| `--genesis-hash` | Expected network identity, checked against block zero |
+| `--manifest` | Verified public output; defaults to `slhsol/deployments/shared-devnet.json` |
+| `--staking-registry` | Actual registry; defaults to the sealed genesis address `0xd51c04d7a0b01124e84de152f4e56d9eecb22d2f` |
+| `--resume` | Continue the existing wrapper ledger, preserving its exact transaction plan |
 
-Set `QSW_RPC=https://altmempool.bailo.london/rpc`. Obtain the genesis hash and
-confirm `web3_clientVersion` before setting the public inputs:
+Forge receives only the public sender/configuration and runs **without
+`--broadcast` or a private key**. Its manifest output is a temporary copy, never
+the public target. The wrapper preserves planned nonces and checks every CREATE
+prediction. Before each new transaction it requires both latest and pending
+operator nonces to match the plan.
 
-```sh
-cast chain-id --rpc-url "$QSW_RPC"
-cast block 0 --json --rpc-url "$QSW_RPC"
-cast client --rpc-url "$QSW_RPC"
-```
+Only after the previous receipt succeeds does it call live `eth_estimateGas`.
+The gas limit is `ceil(estimate * 1.2) + 50,000`, with a hard **16.7m** cap; a
+margin exceeding the cap fails instead of being silently truncated. Transactions
+are legacy type with a fixed **1 gwei** gas price. Signing uses offline `cast mktx`
+with explicit chain, nonce, decimal value, gas limit and price. The raw signed
+transaction/hash is saved before `eth_sendRawTransaction`.
 
-Run from **`slhsol/`** so Forge resolves the script path correctly. For example,
-with a locally configured, matching Foundry keystore account:
+Do not replace this with raw `forge --broadcast` estimates for this profile.
+A Permit2 approval planned at 80,692 gas required a live estimate of 130,936 after
+prior state changes; the wrapper allocates 207,124. The unit regression covers
+that failure, nonce collisions, failed CREATE receipts, manifest preservation and
+secret-safe signing timeouts without making network requests.
 
-```sh
-cd slhsol
-forge script script/DeployDemo.s.sol:DeployDemo \
-  --rpc-url "$QSW_RPC" \
-  --sender "$DEMO_DEPLOYER" \
-  --account "$QSW_FOUNDRY_ACCOUNT" \
-  --broadcast
-```
+## Ledger, recovery and publication
 
-A command without `--broadcast` is only a dry run. The ethrex profile charges
-state resources differently from standard Anvil; use actual client gas estimates
-or explicitly sufficient limits for large creations. A local gas estimate alone
-does not prove a remote deployment fits. Retain the broadcast journal and check
-every remote receipt before publishing the generated manifest.
+The public transaction plan, signed raw bytes and receipts are stored in
+Git-ignored `demo/.state/deploy/<genesis>/<operator>/ledger.json`. No private key
+is copied into it. A per-operator lock prevents two local deployment processes
+from using the same ledger. Avoid other sends from that operator during deployment.
 
-## Provisioning and restart behavior
+An unfinished ledger requires explicit `--resume` with the same network, operator
+and manifest path. It queries saved hashes; if necessary it can rebroadcast only
+the **identical** signed bytes while the exact nonce is still available. It never
+guesses a new nonce, bumps fees, recreates contracts, ignores a failed receipt or
+changes a saved transaction after a timeout. A reverted transaction or unexpected
+nonce stops for manual recovery. `--resume` is not an importer for an older Forge
+broadcast journal; do not blindly use Forge `--resume` with its stale gas limits.
 
-DeployDemo deploys/reuses the verifier, official AMM contracts, DemoUSDC, account
-factory and a tiny hook CREATE2 origin. Salt mining sets exactly the
-`beforeSwap` address bit (`0x80` under mask `0x3fff`). The hook trusts only the
-configured factory and UniversalRouter; the factory has no arbitrary registration
-or owner bypass.
+After all receipts, the wrapper re-runs source deployment checks against mined
+addresses and requires a zero-transaction plan. It verifies runtime code, LP
+ownership, active pool liquidity, chain/profile and genesis before publishing a
+new manifest atomically. An existing manifest is never overwritten. A completed
+manifest on the same genesis can be checked again without sending transactions.
+Do not serve Forge's intermediate/simulated manifest as completion evidence.
 
-The pool sorts DemoUSDC/WETH addresses, uses fee 3000 and tick spacing 60, and
-starts at 2,000 DemoUSDC per WETH. The operator seeds a full-range position with
-20,000 DemoUSDC and approximately 10 WETH, through PositionManager and ordinary
-onchain Permit2 approvals. LP creation is open to the EOA because the hook only
-implements `beforeSwap`. Factory accounts lock **0.012 ETH / 86,400 seconds**;
-locked stake is distinct from spendable fee balance.
+The verified public copy is served at
+`https://altmempool.bailo.london/deployment.json`. Keep the sealed bundle, contract
+manifest, dependency pins and deployment ledger with network backups. The entire
+`demo/.state` tree also contains private PQ run keys, so never publish that tree.
 
-The native sender VERIFY budget in the operator runner is 2.4m gas. The custom
-mempool allows up to 2.5m only for a genuinely onchain-staked sender; other distinct
-entities remain capped at 100k. These admission rules do not impose swap-volume
-limits. See [network policy](../../infra/devnet/README.md#sidecar-provenance-and-policy).
+## Provisioned contracts and pool
 
-A completed manifest on the same genesis is reusable: code and trust bindings
-are checked, an initialized pool is retained, and a saved LP position is not minted
-again. A different chain/genesis is rejected. **The manifest is written during
-Forge simulation, before broadcast has finished.** If broadcast stops partway,
-resume the original broadcast with Forge `--resume`; do not treat its manifest as
-proof that every address exists. Preserve the same signer, network and journal.
-Use a new manifest/genesis only for an intentional new network.
+`script/DeployDemo.s.sol` deploys/reuses the verifier, AMM stack, six-decimal
+DemoUSDC, account factory and a small hook CREATE2 origin. Salt mining sets exactly
+the `beforeSwap` address bit (`0x80` under mask `0x3fff`). The hook trusts only the
+configured factory and UniversalRouter, with no owner registration bypass or
+swap amount/volume/daily limits.
 
-`shared-devnet.json` is the public contract-address/pool-key record, with genesis,
-profile and dependency pins. Publish its verified copy at
-`https://altmempool.bailo.london/deployment.json`; it contains no private keys.
-Locally generated `local-*` files describe disposable tests and are Git-ignored.
-Private operator/validator/PQ key files stay outside tracked/public artifacts.
+The sorted DemoUSDC/WETH pool uses fee 3000 and tick spacing 60, initially
+2,000 DemoUSDC/WETH. The operator supplies a full-range position with 20,000
+DemoUSDC and approximately 10 WETH via PositionManager and onchain Permit2
+approvals. EOA LP creation is allowed because only `beforeSwap` is guarded.
+The operator owns the LP NFT, protocol fees and DemoUSDC mint authority.
 
-After deployment, run [the actual sponsored WASM swap](../../demo/README.md).
-Receipt and admission evidence from that run establishes inclusion; this guide
-and a generated manifest do not claim an unmined VPS transaction succeeded.
+Factory accounts lock **0.012 ETH / 86,400 seconds**, distinct from spendable gas
+funds. The swap runner allocates 2.4m gas to sender validation; the custom mempool
+permits up to 2.5m only for a genuinely onchain-staked sender, with other distinct
+entities capped at 100k. See [network policy](../../infra/devnet/README.md#sidecar-provenance-and-policy).
+
+Then run [the actual sponsored WASM swap](../../demo/README.md). Its chain receipt
+and alternative-mempool admission establish inclusion; the deployment plan alone
+does not. Locally generated `local-*` files are disposable, Git-ignored evidence.
