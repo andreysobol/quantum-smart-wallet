@@ -1,0 +1,3 @@
+[submodule "slhsol/lib/forge-std"]
+	path = slhsol/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
