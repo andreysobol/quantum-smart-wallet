@@ -82,3 +82,44 @@ Run 10 signatures:
 ```bash
 bash eval/eval_anvil.sh -n 10
 ```
+
+## slhts
+
+Rust code compiled to WebAssembly, with a TypeScript API.
+
+### Build
+
+```bash
+rustup target add wasm32-unknown-unknown
+cargo install wasm-bindgen-cli --version 0.2.130 --locked 
+
+npm ci
+npm run build
+```
+
+### Use from TypeScript
+
+```ts
+import { init, generateKeyPair, sign, verify } from "slhts";
+
+await init();                                   // load rslh_bg.wasm once
+const kp = generateKeyPair("sha2");             // or "shake"
+const msg = new TextEncoder().encode("hello");
+const ctx = new TextEncoder().encode("app");
+
+const sig = sign("sha2", kp.secretKey, msg, { context: ctx });   // 7,856 bytes, takes ~1–3 s
+verify("sha2", kp.publicKey, msg, sig, ctx);                     // true
+```
+
+### Test in a headless browser
+
+```bash
+cargo build --release --manifest-path ../rslh/Cargo.toml 
+npx playwright install --with-deps chromium
+npm test
+```
+
+The Playwright tests load `test/index.html` in headless Chromium, call the TypeScript API, and check:
+round trips for both parameter sets, rejection of a modified message / context / signature,
+byte-identical deterministic signatures and keys versus the native CLI, and that the CLI verifies
+a hedged signature made in the browser.
