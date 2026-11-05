@@ -89,8 +89,20 @@ contract SlhDsaSha2_128sTest is Test {
     /// (WOTS part and auth path), plus first and last bytes.
     function test_rejectBitFlips() public view {
         uint256[14] memory pos = [
-            uint256(0), 15, 16, 200, 2927, 2928, 2928 + 559, 2928 + 560, 2928 + 703,
-            2928 + 704 * 3 + 100, 2928 + 704 * 6, 2928 + 704 * 6 + 600, 7840, 7855
+            uint256(0),
+            15,
+            16,
+            200,
+            2927,
+            2928,
+            2928 + 559,
+            2928 + 560,
+            2928 + 703,
+            2928 + 704 * 3 + 100,
+            2928 + 704 * 6,
+            2928 + 704 * 6 + 600,
+            7840,
+            7855
         ];
         for (uint256 i = 0; i < pos.length; i++) {
             bytes memory s = bytes.concat(det);
@@ -108,6 +120,8 @@ contract SlhDsaSha2_128sTest is Test {
 
     function slice(bytes memory b, uint256 n) internal pure returns (bytes memory out) {
         out = new bytes(n);
-        for (uint256 i = 0; i < n; i++) out[i] = b[i];
+        for (uint256 i = 0; i < n; i++) {
+            out[i] = b[i];
+        }
     }
 }
