@@ -37,6 +37,9 @@ jobs:
       - name: Run Forge fmt
         run: forge fmt --check
 
+      - name: Build the pinned Permit2 artifact
+        run: bash script/build_permit2.sh
+
       - name: Run Forge build
         run: forge build --sizes
 
