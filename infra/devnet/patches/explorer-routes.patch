@@ -208,10 +208,10 @@ index 0000000..5642412
 +export function isSharedMempool(url:string) {return url.replace(/\/+$/,"")===sharedMempoolUrl();}
 diff --git a/packages/devnet-ui/src/chain/explorer.test.tsx b/packages/devnet-ui/src/chain/explorer.test.tsx
 new file mode 100644
-index 0000000..d32a1e2
+index 0000000..bce9589
 --- /dev/null
 +++ b/packages/devnet-ui/src/chain/explorer.test.tsx
-@@ -0,0 +1,131 @@
+@@ -0,0 +1,135 @@
 +import {beforeEach, describe, expect, it, vi} from "vitest";
 +import {screen, waitFor} from "@testing-library/react";
 +import userEvent from "@testing-library/user-event";
@@ -318,13 +318,17 @@ index 0000000..d32a1e2
 +    expect(screen.getByText(/Indexed through block unknown of unknown/)).toBeTruthy();
 +  });
 +  it("retains the native transaction link without losing chain receipt facts",async()=>{
-+    mockChain({qsw_explorerTransaction:{transaction:{type:"0x6",sender:OTHER,nonce:"0x7",frames:[{target:ADDRESS},{target:OTHER}]},receipt:{status:"0x1",gasUsed:"0x5208",payer:OTHER},block:{number:10,hash:HASH,timestamp:1700000000}}});
++    mockChain({qsw_explorerTransaction:{transaction:{type:"0x6",sender:OTHER,nonceSeq:"0x7",nonceKeys:["0x0"],frames:[{target:null},{target:OTHER}]},receipt:{status:"0x1",gasUsed:"0x5208",payer:OTHER},block:{number:10,hash:HASH,timestamp:1700000000}}});
 +    renderApp({path:"/chain/tx/"+HASH,instances:[]});
 +    const link=await screen.findByRole("link",{name:"View native frames and mempool admission details"});
 +    expect(link.getAttribute("href")).toContain("/tx/"+HASH);
 +    expect(screen.getByText("Native frame transaction")).toBeTruthy();
 +    expect(screen.getByText("2 frames")).toBeTruthy();
++    expect(screen.getByText("(sender)")).toBeTruthy();
++    expect(screen.queryByText("Contract creation frame")).toBeNull();
 +    expect(screen.getByText("Payer")).toBeTruthy();
++    expect(screen.getByText("Nonce sequence").nextElementSibling?.textContent).toBe("7");
++    expect(screen.getByText("Nonce keys").nextElementSibling?.textContent).toBe("0x0");
 +    expect(screen.queryByText("Contract creation")).toBeNull();
 +  });
 +});
@@ -345,10 +349,10 @@ index 0000000..d32a1e2
 +});
 diff --git a/packages/devnet-ui/src/ui/screens/ChainScreens.tsx b/packages/devnet-ui/src/ui/screens/ChainScreens.tsx
 new file mode 100644
-index 0000000..dbf90c3
+index 0000000..5caef45
 --- /dev/null
 +++ b/packages/devnet-ui/src/ui/screens/ChainScreens.tsx
-@@ -0,0 +1,126 @@
+@@ -0,0 +1,127 @@
 +import {useState, type ReactNode} from "react";
 +import {Link} from "@tanstack/react-router";
 +import {ADDRESS, CHAIN_ID, HASH, erc20Contracts, formatUnits, safeSourceUrl, useAddressFacts, useChainStatus,
@@ -466,10 +470,11 @@ index 0000000..dbf90c3
 +  const receipt=data?.receipt;
 +  const native=Number(tx?.type)===6;
 +  const frames=Array.isArray(tx?.frames)?tx.frames:[];
++  const nonce=tx?.nonce??tx?.nonceSeq;
 +  const address=(value:unknown)=>typeof value==="string"&&ADDRESS.test(value)?<AddressLink address={value}/>:rawText(value);
 +  return <div className="space-y-7"><section><h2 className="text-2xl">On-chain transaction</h2><p className="mt-3 break-all"><CopyText value={hash}/></p><ChainScope/></section>
 +    {query.isPending?<p role="status">Looking up the transaction on the shared chain…</p>:query.isError?<ErrorNotice error={query.error} retry={query.refetch}/>:!data?<p className="text-ink-soft">This transaction was not found on the shared chain. It may still be pending or the index may be catching up.</p>:<>
-+      <Facts><Fact name="Status">{receipt?Number(receipt.status)===1?"Success":"Reverted":"Pending"}</Fact><Fact name="Type">{Number(tx?.type)===6?"Native frame transaction":"Ethereum transaction type "+Number(tx?.type??0)}</Fact><Fact name="Block">{data.block?Number(data.block.number).toLocaleString():"Pending"}</Fact><Fact name="Time">{data.block?new Date(Number(data.block.timestamp)*1000).toLocaleString():"Pending"}</Fact><Fact name="From">{address(tx?.from??tx?.sender)}</Fact><Fact name={native?"Frame targets":"To"}>{native?<div><p>{frames.length} frames</p><ol className="mt-2 space-y-1">{frames.map((frame,index)=><li key={index}>Frame {index}: {typeof frame==="object"&&frame!==null&&"target" in frame?frame.target===null?"Contract creation frame":address(frame.target):"Target unavailable"}</li>)}</ol></div>:tx?.to?address(tx.to):"Contract creation"}</Fact>{receipt?.payer!==undefined&&<Fact name="Payer">{address(receipt.payer)}</Fact>}{typeof receipt?.contractAddress==="string"&&receipt.contractAddress&&<Fact name="Created contract">{address(receipt.contractAddress)}</Fact>}<Fact name="Nonce">{rawText(tx?.nonce)}</Fact><Fact name="Gas used">{receipt?formatQuantity(rawText(receipt.gasUsed)):"Pending"}</Fact>{feeValue(receipt)!==null&&<Fact name="Transaction fee">{feeValue(receipt)} test ETH</Fact>}</Facts>
++      <Facts><Fact name="Status">{receipt?Number(receipt.status)===1?"Success":"Reverted":"Pending"}</Fact><Fact name="Type">{Number(tx?.type)===6?"Native frame transaction":"Ethereum transaction type "+Number(tx?.type??0)}</Fact><Fact name="Block">{data.block?Number(data.block.number).toLocaleString():"Pending"}</Fact><Fact name="Time">{data.block?new Date(Number(data.block.timestamp)*1000).toLocaleString():"Pending"}</Fact><Fact name="From">{address(tx?.from??tx?.sender)}</Fact><Fact name={native?"Frame targets":"To"}>{native?<div><p>{frames.length} frames</p><ol className="mt-2 space-y-1">{frames.map((frame,index)=><li key={index}>Frame {index}: {typeof frame==="object"&&frame!==null&&"target" in frame?frame.target===null?<>{address(tx?.sender??tx?.from)} <span className="text-ink-soft">(sender)</span></>:address(frame.target):"Target unavailable"}</li>)}</ol></div>:tx?.to?address(tx.to):"Contract creation"}</Fact>{receipt?.payer!==undefined&&<Fact name="Payer">{address(receipt.payer)}</Fact>}{typeof receipt?.contractAddress==="string"&&receipt.contractAddress&&<Fact name="Created contract">{address(receipt.contractAddress)}</Fact>}<Fact name={native?"Nonce sequence":"Nonce"}>{typeof nonce==="string"||typeof nonce==="number"?formatQuantity(String(nonce)):"Unavailable"}</Fact>{native&&Array.isArray(tx?.nonceKeys)&&<Fact name="Nonce keys"><span className="break-all font-mono text-sm">{tx.nonceKeys.map(rawText).join(", ")}</span></Fact>}<Fact name="Gas used">{receipt?formatQuantity(rawText(receipt.gasUsed)):"Pending"}</Fact>{feeValue(receipt)!==null&&<Fact name="Transaction fee">{feeValue(receipt)} test ETH</Fact>}</Facts>
 +      {Number(tx?.type)===6&&<Link to="/tx/$hash" params={{hash}} search={{node:sharedMempoolUrl()}} className={linkClass}>View native frames and mempool admission details</Link>}
 +      <details className="border-y border-line py-3"><summary className="cursor-pointer font-medium">Raw transaction and receipt</summary><pre className="mt-4 max-h-[32rem] overflow-auto bg-raised p-4 font-mono text-xs">{JSON.stringify(data,null,2)}</pre></details>
 +    </>}
