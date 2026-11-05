@@ -123,3 +123,43 @@ for (const alg of ["sha2", "shake"] as const) {
     expect(verified).toContain("signature VALID");
   });
 }
+
+test("sha2: native account digest matches the Solidity-tested signature", async ({ page }) => {
+  const fixture = readFileSync(resolve(ROOT, "../slhsol/test/AccountVector.sol"), "utf8");
+  const publicKey = fixture.match(/PUBLIC_KEY\s*=\s*hex"([0-9a-f]{64})"/i)?.[1];
+  const digest = fixture.match(/DIGEST\s*=\s*hex"([0-9a-f]{64})"/i)?.[1];
+  const context = fixture.match(/CONTEXT\s*=\s*"([^"]+)"/)?.[1];
+  const signature = fixture.match(/return\s+hex"([0-9a-f]+)"/i)?.[1];
+  if (!publicKey || !digest || !context || !signature) throw new Error("invalid AccountVector.sol fixture");
+  expect(context).toBe("QuantumSmartWallet/SLH-DSA-SHA2-128s/v1");
+
+  const out = await page.evaluate(
+    ({ codecDigest, context }) => {
+      const { keyPairFromSeed, fromHex, toHex, sign, verify } = window.rslh;
+      const kp = keyPairFromSeed("sha2", Uint8Array.from({ length: 48 }, (_, i) => i));
+      // The codec returns prefixed hex; sign the decoded digest, not its text.
+      const message = fromHex(codecDigest.slice(2));
+      const ctx = new TextEncoder().encode(context);
+      const sig = sign("sha2", kp.secretKey, message, { context: ctx, deterministic: true });
+      const sigHex = toHex(sig);
+      return {
+        digestBytes: message.length,
+        publicKey: toHex(kp.publicKey),
+        signatureBytes: sig.length,
+        signature: sigHex,
+        valid: verify("sha2", kp.publicKey, message, sig, ctx),
+        wrongContext: verify("sha2", kp.publicKey, message, sig, new Uint8Array()),
+        entry: { scheme: 0, signer: "0x", msg: "0x", signature: `0x${sigHex}` },
+      };
+    },
+    { codecDigest: `0x${digest}`, context },
+  );
+
+  expect(out.digestBytes).toBe(32);
+  expect(out.publicKey).toBe(publicKey);
+  expect(out.signatureBytes).toBe(7856);
+  expect(out.signature).toBe(signature);
+  expect(out.valid).toBe(true);
+  expect(out.wrongContext).toBe(false);
+  expect(out.entry).toEqual({ scheme: 0, signer: "0x", msg: "0x", signature: `0x${signature}` });
+});
