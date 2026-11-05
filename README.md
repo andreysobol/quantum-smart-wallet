@@ -4,6 +4,12 @@ An Ethereum smart wallet using post-quantum signatures, onchain verification, an
 
 > ⚠️ Research/educational code — not audited. Do not use it to protect real funds.
 
+## SLH-DSA-SHA2-128s
+
+[FIPS 205: Stateless Hash-Based Digital Signature Standard](https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.205.pdf)
+
+NIST’s FIPS 205 defines SLH-DSA, a stateless, hash-based digital signature algorithm derived from SPHINCS+. Its SLH-DSA-SHA2-128s variant uses SHA-256 and prioritizes smaller signatures. The standard specifies key generation, signing, and verification for authenticating data with resistance to quantum computing attacks.
+
 ## rslh — SLH-DSA
 
 Rust implementation of SLH-DSA-SHA2-128s and SLH-DSA-SHAKE-128s with a small CLI.
