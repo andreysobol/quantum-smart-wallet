@@ -57,4 +57,5 @@ OUT="$HERE/test/Vectors.sol"
   done
   echo "}"
 } > "$OUT"
+forge fmt "$OUT"
 echo "wrote $OUT (${#CASES[@]} vectors)"
