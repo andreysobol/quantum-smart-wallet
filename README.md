@@ -10,6 +10,16 @@ An Ethereum smart wallet using post-quantum signatures, onchain verification, an
 
 NIST’s FIPS 205 defines SLH-DSA, a stateless, hash-based digital signature algorithm derived from SPHINCS+. Its SLH-DSA-SHA2-128s variant uses SHA-256 and prioritizes smaller signatures. The standard specifies key generation, signing, and verification for authenticating data with resistance to quantum computing attacks.
 
+## slhsol — native quantum account
+
+`QuantumAccount` uses SLH-DSA-SHA2-128s signatures and the onchain verifier for
+EIP-8141 native validation. It supports key rotation, native SENDER operations and
+optional constructor staking for the ERC-8421 alternative mempool. It targets the
+Mumbai ethrex devnet profile, chain ID 1337.
+
+See [the contract guide](slhsol/QUANTUM_ACCOUNT.md) for signing, deployment, tests and the
+distinction between native execution and mempool admission.
+
 ## rslh — SLH-DSA
 
 Rust implementation of SLH-DSA-SHA2-128s and SLH-DSA-SHAKE-128s with a small CLI.
