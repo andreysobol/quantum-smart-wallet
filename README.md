@@ -35,3 +35,15 @@ rslh verify --pk me.pub --in msg.txt --sig msg.sig --context app --deterministic
 ```bash
 rslh pubkey --sk me.key --pk me.pub --force # re-derive the public key from a private key
 ```
+
+## Cross-checking with OpenSSL
+
+Checks rslh against OpenSSL’s independent SLH-DSA implementation. Requires OpenSSL 3.5 or later with SLH-DSA support.
+
+The script generates keys and signs random messages with random contexts using rslh, then checks that OpenSSL loads the exported keys and derives the same public key, accepts valid signatures and rejects modified messages, corrupted signatures, and incorrect contexts, and produces identical signatures in deterministic mode.
+
+Run 100 checks, stopping at the first failure:
+
+```bash
+bash eval/eval_openssl.sh -n 100
+```
