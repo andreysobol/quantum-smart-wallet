@@ -32,7 +32,7 @@ jobs:
 
       - name: Install Rust toolchain
         run: |
-          rustup toolchain install stable --profile minimal --component clippy
+          rustup toolchain install stable --profile minimal --component clippy,rustfmt
           rustup default stable
           rustc --version
 
@@ -46,11 +46,14 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('rslh/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
 
+      - name: Check formatting
+        run: cargo fmt --check
+
       - name: Build
         run: cargo build --release --locked
 
       - name: Clippy
-        run: cargo clippy --all-targets --locked
+        run: cargo clippy --all-targets --locked -- -D warnings
 
       - name: Test
         run: cargo test --release --locked
