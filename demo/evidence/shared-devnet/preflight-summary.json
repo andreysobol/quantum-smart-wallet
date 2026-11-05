@@ -1,0 +1,33 @@
+{
+  "canonicalMempoolValid": false,
+  "canonicalMempoolViolation": "prefix gas budget exceeded: 2432900 > 100000 (MAX_VERIFY_GAS)",
+  "erc7562TraceError": null,
+  "executionError": null,
+  "executionStatus": "success",
+  "frames": [
+    {
+      "gasUsed": "0x111955",
+      "succeeded": true
+    },
+    {
+      "gasUsed": "0xbb8",
+      "succeeded": true
+    },
+    {
+      "gasUsed": "0x43ad",
+      "succeeded": true
+    },
+    {
+      "gasUsed": "0x4876",
+      "succeeded": true
+    },
+    {
+      "gasUsed": "0x2314d",
+      "succeeded": true
+    }
+  ],
+  "gasUsed": "0x1aafb8",
+  "maxCost": "0x1d6e3eb945dc00",
+  "payer": "0xb7ca4c821205f6721bacbd48052bebf6a1f252c1",
+  "prefixShape": "OnlyVerifyPay"
+}

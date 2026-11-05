@@ -1,0 +1,6 @@
+{
+  "initiator": "0xb7Ca4C821205f6721bacbd48052bEbF6A1f252c1",
+  "errorSelector": "0xec09e13f",
+  "expectedGuardRejection": true,
+  "proof": "private callTracer revert bytes"
+}
