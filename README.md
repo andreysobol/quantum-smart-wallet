@@ -47,3 +47,28 @@ Run 100 checks, stopping at the first failure:
 ```bash
 bash eval/eval_openssl.sh -n 100
 ```
+
+## slhsol
+
+Solidity verifier for SLH-DSA-SHA2-128s, a hash-based post-quantum signature scheme specified in NIST FIPS 205.
+
+Supports pure verification with a context string. Uses the SHA-256 precompile.
+
+### Usage
+
+```solidity
+bool valid = verifier.verify(publicKey, message, context, signature);
+```
+
+- Public key: 32 bytes (`PK.seed || PK.root`).
+- Signature: 7,856 bytes.
+- Context: up to 255 bytes; use empty bytes if unused.
+
+Returns `false` for invalid signatures or incorrect key/signature lengths. Reverts if the context exceeds 255 bytes.
+
+### Development
+
+```bash
+forge build
+forge test
+```
