@@ -72,3 +72,13 @@ Returns `false` for invalid signatures or incorrect key/signature lengths. Rever
 forge build
 forge test
 ```
+
+## Anvil evaluation
+
+Anvil evaluation checks Rust-generated SLH-DSA-SHA2-128s signatures against the Solidity verifier on a local Anvil node. Requires Rust and Foundry. Starts Anvil, and deploys SlhDsaVerifier. It generates random messages and contexts, alternating hedged and deterministic signing. Each signature is verified through call; modified messages, corrupted signatures, and incorrect contexts must be rejected.
+
+Run 10 signatures:
+
+```bash
+bash eval/eval_anvil.sh -n 10
+```
