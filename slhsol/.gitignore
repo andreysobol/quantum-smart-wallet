@@ -19,3 +19,6 @@ docs/
 .env
 .env.*
 !.env.example
+
+# Operator receipts are retained locally; public manifests and evidence are curated.
+/broadcast/DeployDemo.s.sol/
