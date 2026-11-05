@@ -4,5 +4,32 @@
       "name": "v1.17.0",
       "rev": "f3dae6e6ee381f25eb6a246f7da9b85c91a68219"
     }
+  },
+  "lib/universal-router": {
+    "tag": {
+      "name": "2.2.0",
+      "rev": "64027f3372aa235734207c4e05667204f6f927e1"
+    }
+  },
+  "lib/v4-periphery": {
+    "rev": "a7af5b345b479b05fde9182d7e40913a73b3e18f"
+  },
+  "lib/v4-core": {
+    "rev": "59d3ecf53afa9264a16bba0e38f4c5d2231f80bc"
+  },
+  "lib/permit2": {
+    "rev": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219"
+  },
+  "lib/v3-core": {
+    "tag": {
+      "name": "v1.0.0",
+      "rev": "e3589b192d0be27e100cd0daaf6c97204fdb1899"
+    }
+  },
+  "lib/v2-core": {
+    "tag": {
+      "name": "v1.0.1",
+      "rev": "4dd59067c76dea4a0e8e4bfdda41877a6b16dedc"
+    }
   }
 }
