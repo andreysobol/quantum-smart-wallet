@@ -9,10 +9,13 @@ participants:
   - --http.api=ethrex
   - --http.api=debug
   - --http.api=txpool
+  cl_extra_params:
+  - --http-enable-beacon-processor=false
   supernode: true
   vc_image: ethpandaops/lighthouse@sha256:dd7e92e2e9c3127750e9bff5f8a0efec686f296445a44ef5d9c1eb750e8906b0
 network_params:
   network_id: '81411338'
+  genesis_delay: 120
   seconds_per_slot: 6
   fulu_fork_epoch: 0
   gloas_fork_epoch: 1

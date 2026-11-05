@@ -1,0 +1,2 @@
+# Unified diffs require whitespace-only context lines.
+infra/devnet/patches/*.patch -whitespace

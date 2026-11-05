@@ -19,6 +19,43 @@ def policy_cid(data):
     return "b" + base64.b32encode(b"\x01\x55\x12\x20" + hashlib.sha256(data).digest()).decode().lower().rstrip("=")
 
 
+def validate_deposit_start(bundle):
+    file = bundle / "consensus/deposit_contract_block.txt"
+    if not file.is_file() or file.is_symlink():
+        raise ValueError("required Lighthouse file missing: consensus/deposit_contract_block.txt")
+    if file.read_text().strip() != "0":
+        raise ValueError("expected genesis-preloaded deposit contract start block 0")
+
+
+def sha256_file(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def validate_snapshot(bundle, metadata):
+    snapshot = metadata.get("snapshot", {})
+    if (metadata.get("formatVersion") != 2 or not snapshot.get("hezeActive") or
+        snapshot.get("observedPostHezeAdvances", 0) < 2 or
+        snapshot.get("hezeForkEpoch") != 2 or
+        snapshot.get("consensusSlot", 0) < 64 or snapshot.get("executionBlockNumber", 0) < 1 or
+        not re.fullmatch(r"0x[0-9a-fA-F]{64}", snapshot.get("executionBlockHash", ""))):
+        raise ValueError("a mined post-Heze version 2 snapshot is required; preserve older bundles")
+    for role in ("execution", "consensus"):
+        directory = bundle / "snapshot" / role
+        files = [p for p in directory.rglob("*") if p.is_file()] if directory.is_dir() else []
+        if directory.is_symlink() or not files:
+            raise ValueError(f"required {role} database snapshot is missing")
+        pointer = directory / (f"chain-{CHAIN_ID}/CURRENT" if role == "execution" else "beacon/chain_db/CURRENT")
+        if not pointer.is_file() or pointer.is_symlink() or pointer.stat().st_size == 0:
+            raise ValueError(f"required {role} database pointer is missing")
+        for file in files:
+            if file.is_symlink() or str(file.relative_to(bundle)) not in metadata["files"]:
+                raise ValueError("database snapshot file is unsafe or not sealed")
+
+
 def validate_bundle(bundle):
     metadata = json.loads((bundle / "manifest.json").read_text())
     if metadata.get("chainId") != CHAIN_ID:
@@ -27,7 +64,7 @@ def validate_bundle(bundle):
         file = bundle / relative
         if file.is_symlink() or not file.is_file() or not file.resolve().is_relative_to(bundle.resolve()):
             raise ValueError("unsafe/missing bundle file")
-        if hashlib.sha256(file.read_bytes()).hexdigest() != expected:
+        if sha256_file(file) != expected:
             raise ValueError(f"bundle file checksum failed: {relative}")
     genesis = json.loads((bundle / "genesis.json").read_text())
     if int(genesis["config"]["chainId"]) != CHAIN_ID:
@@ -35,9 +72,11 @@ def validate_bundle(bundle):
     registry = genesis["alloc"].get("d51c04d7a0b01124e84de152f4e56d9eecb22d2f") or genesis["alloc"].get("0xd51c04d7a0b01124e84de152f4e56d9eecb22d2f")
     if not registry or registry.get("code", "").lower() != (ROOT / "genesis/registry.runtime.hex").read_text().strip().lower():
         raise ValueError("staking registry runtime does not match the pinned source")
-    for required in ("consensus/config.yaml", "consensus/genesis.ssz", "jwt.hex"):
+    for required in ("consensus/config.yaml", "consensus/genesis.ssz", "consensus/deposit_contract_block.txt", "jwt.hex"):
         if not (bundle / required).is_file():
             raise ValueError(f"required bundle file missing: {required}")
+    validate_deposit_start(bundle)
+    validate_snapshot(bundle, metadata)
     if not (bundle / "validator-keys/keys").is_dir() or not (bundle / "validator-keys/secrets").is_dir():
         raise ValueError("validator keys/secrets are missing")
     database = bundle / "validator-keys/keys/slashing_protection.sqlite"
@@ -102,7 +141,8 @@ def main():
     # No signing keys live here: protocol transactions arrive already signed.
     (generated / "sidecar-config.json").write_text(json.dumps(config, indent=2) + "\n")
     (generated / "sidecar-config.json").chmod(0o644)
-    (generated / "runtime.env").write_text(f"QSW_PUBLIC_URL={args.public_url.rstrip('/')}\nQSW_FEE_RECIPIENT={recipient}\n")
+    project = "qsw-devnet-" + sha256_file(generated / "bundle/genesis.json")[:12]
+    (generated / "runtime.env").write_text(f"COMPOSE_PROJECT_NAME={project}\nQSW_PUBLIC_URL={args.public_url.rstrip('/')}\nQSW_FEE_RECIPIENT={recipient}\n")
     (generated / "runtime.env").chmod(0o600)
     print(json.dumps({"chainId": CHAIN_ID, "policyCid": cid, "publicUrl": args.public_url,
                       "feeRecipient": recipient, "bundleChecksums": "verified"}))

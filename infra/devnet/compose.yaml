@@ -7,15 +7,56 @@ x-logging: &logging
     max-file: "3"
 
 services:
+  execution-init:
+    image: node@sha256:b8d2197aff9129d16c801a3e3e1b2a873c4946480f5a310f38056df2268c38d9
+    platform: linux/amd64
+    network_mode: none
+    restart: "no"
+    mem_limit: 128m
+    pids_limit: 32
+    entrypoint: ["node", "/opt/qsw/init-state.mjs"]
+    command: ["/bundle", "/data", "execution"]
+    volumes:
+      - type: bind
+        source: ./.generated/bundle
+        target: /bundle
+        read_only: true
+        bind: {create_host_path: false}
+      - ./init-state.mjs:/opt/qsw/init-state.mjs:ro
+      - execution-data:/data
+    logging: *logging
+
+  consensus-init:
+    image: node@sha256:b8d2197aff9129d16c801a3e3e1b2a873c4946480f5a310f38056df2268c38d9
+    platform: linux/amd64
+    network_mode: none
+    restart: "no"
+    mem_limit: 128m
+    pids_limit: 32
+    entrypoint: ["node", "/opt/qsw/init-state.mjs"]
+    command: ["/bundle", "/data", "consensus"]
+    volumes:
+      - type: bind
+        source: ./.generated/bundle
+        target: /bundle
+        read_only: true
+        bind: {create_host_path: false}
+      - ./init-state.mjs:/opt/qsw/init-state.mjs:ro
+      - consensus-data:/data
+    logging: *logging
+
   ethrex:
     image: ghcr.io/forshtat/ethrex@sha256:920295ae5496669a6f90a44431d4cbcb4703feec0e89207599fe19a251739873
     platform: linux/amd64
     restart: unless-stopped
     mem_limit: 1280m
     pids_limit: 256
+    depends_on:
+      execution-init:
+        condition: service_completed_successfully
     command:
       - --network=/network-configs/genesis.json
-      - --datadir=/data
+      - --datadir=/data/runtime
       - --syncmode=full
       - --log.level=info
       - --http.addr=0.0.0.0
@@ -53,7 +94,11 @@ services:
     restart: unless-stopped
     mem_limit: 1024m
     pids_limit: 192
-    depends_on: [ethrex]
+    depends_on:
+      ethrex:
+        condition: service_started
+      consensus-init:
+        condition: service_completed_successfully
     entrypoint: ["/bin/sh", "/opt/qsw/beacon.sh"]
     environment:
       QSW_FEE_RECIPIENT: ${QSW_FEE_RECIPIENT:?Run configure.py first and pass .generated/runtime.env}
@@ -78,7 +123,8 @@ services:
     image: ethpandaops/lighthouse@sha256:dd7e92e2e9c3127750e9bff5f8a0efec686f296445a44ef5d9c1eb750e8906b0
     platform: linux/amd64
     restart: unless-stopped
-    mem_limit: 192m
+    # Key-cache/scrypt decryption peaks above steady-state validator memory.
+    mem_limit: 768m
     pids_limit: 128
     depends_on: [beacon]
     entrypoint: ["lighthouse"]

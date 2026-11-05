@@ -4,8 +4,8 @@ set -eu
 set -- $(hostname -i)
 address="$1"
 exec lighthouse beacon_node \
-  --debug-level=info --datadir=/data --testnet-dir=/network-configs \
-  --listen-address=0.0.0.0 --port=9000 --http --http-address=0.0.0.0 --http-port=5052 \
+  --debug-level=info --datadir=/data/runtime --testnet-dir=/network-configs \
+  --listen-address=0.0.0.0 --port=9000 --http --http-address=0.0.0.0 --http-port=5052 --http-enable-beacon-processor=false \
   --disable-packet-filter --disable-enr-auto-update --enr-address="$address" \
   --enr-tcp-port=9000 --enr-udp-port=9000 --enr-quic-port=9001 --quic-port=9001 \
   --enable-private-discovery --execution-endpoints=http://ethrex:8551 \
