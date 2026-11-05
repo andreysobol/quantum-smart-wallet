@@ -59,3 +59,23 @@ bun test infra/gateway
 The implementation uses the native APIs documented at
 [HTTP server](https://bun.com/docs/runtime/http/server) and
 [WebSockets](https://bun.com/docs/runtime/http/websockets).
+
+## Cloudflare API compatibility
+
+For this shared deployment, the Tunnel hostname `altmempool.bailo.london` routes
+to `http://127.0.0.1:18080`. Existing hostnames and Access applications are retained.
+The new public RPC paths must work for programmatic clients.
+
+Cloudflare Browser Integrity Check can reject normal Python clients with error
+1010. This deployment has an explicitly approved Configuration Rule with action
+`set_config`, parameter `bic: false`, scoped to exactly:
+
+```text
+http.host eq "altmempool.bailo.london" and
+http.request.uri.path in {"/rpc" "/rpc/" "/mempool" "/mempool/"}
+```
+
+The zone-wide browser check, other WAF controls and unrelated Access applications
+stay enabled. Apply this narrow rule only with the zone owner's authorization;
+verify an ordinary JSON-RPC client and a browser WebSocket after deployment.
+The gateway's method, size, rate and subscription limits still apply.

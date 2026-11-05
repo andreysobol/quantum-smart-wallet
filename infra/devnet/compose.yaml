@@ -49,6 +49,7 @@ services:
     image: ghcr.io/forshtat/ethrex@sha256:920295ae5496669a6f90a44431d4cbcb4703feec0e89207599fe19a251739873
     platform: linux/amd64
     restart: unless-stopped
+    stop_grace_period: 60s
     mem_limit: 1280m
     pids_limit: 256
     depends_on:
@@ -92,6 +93,7 @@ services:
     image: ethpandaops/lighthouse@sha256:dd7e92e2e9c3127750e9bff5f8a0efec686f296445a44ef5d9c1eb750e8906b0
     platform: linux/amd64
     restart: unless-stopped
+    stop_grace_period: 60s
     mem_limit: 1024m
     pids_limit: 192
     depends_on:
@@ -123,6 +125,7 @@ services:
     image: ethpandaops/lighthouse@sha256:dd7e92e2e9c3127750e9bff5f8a0efec686f296445a44ef5d9c1eb750e8906b0
     platform: linux/amd64
     restart: unless-stopped
+    stop_grace_period: 60s
     # Key-cache/scrypt decryption peaks above steady-state validator memory.
     mem_limit: 768m
     pids_limit: 128
@@ -163,6 +166,7 @@ services:
       args:
         QSW_PUBLIC_MEMPOOL_URL: ${QSW_PUBLIC_URL:-https://altmempool.bailo.london}/mempool
     restart: unless-stopped
+    stop_grace_period: 60s
     mem_limit: 512m
     pids_limit: 192
     depends_on: [ethrex]
@@ -201,6 +205,7 @@ services:
       args:
         QSW_PUBLIC_MEMPOOL_URL: ${QSW_PUBLIC_URL:-https://altmempool.bailo.london}/mempool
     restart: unless-stopped
+    stop_grace_period: 60s
     mem_limit: 96m
     pids_limit: 64
     expose: ["8080"]

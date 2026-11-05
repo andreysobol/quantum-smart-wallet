@@ -20,6 +20,33 @@ Mumbai ethrex devnet profile, chain ID 1337.
 See [the contract guide](slhsol/QUANTUM_ACCOUNT.md) for signing, deployment, tests and the
 distinction between native execution and mempool admission.
 
+## Shared devnet
+
+The reproducible demo stack uses chain **81411338** and the pinned ethrex
+`9aa3645d` frame-transaction profile.
+
+- [Devnet and persistent node setup](infra/devnet/README.md)
+- [Public RPC gateway and explorer routing](infra/gateway/README.md)
+- [Uniswap v4 deployment](slhsol/deployments/README.md)
+- [WASM-signed sponsored swap example](demo/README.md)
+
+`QuantumAccountFactory` registers only the accounts it deploys. `QuantumGuardHook`
+accepts swaps from those accounts through the pinned Universal Router. It has no
+volume or daily limit. The demo uses the official pinned Uniswap contracts, two
+test tokens, and a funded pool.
+
+The shared deployment exposes:
+
+| Service | URL |
+| --- | --- |
+| Execution RPC | https://altmempool.bailo.london/rpc |
+| Alternative mempool | https://altmempool.bailo.london/mempool |
+| Explorer | https://altmempool.bailo.london/explorer/ |
+| Frontend deployment manifest | https://altmempool.bailo.london/deployment.json |
+
+See the [verified sponsored swap](demo/evidence/shared-devnet/report.json) and
+[deployed contract addresses](slhsol/deployments/shared-devnet.json).
+
 ## rslh — SLH-DSA
 
 Rust implementation of SLH-DSA-SHA2-128s and SLH-DSA-SHAKE-128s with a small CLI.
