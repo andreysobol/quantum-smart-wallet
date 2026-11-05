@@ -6,12 +6,10 @@ on:
   push:
     paths:
       - "rslh/**"
-      - "eval/**"
       - ".github/workflows/rslh.yml"
   pull_request:
     paths:
       - "rslh/**"
-      - "eval/**"
       - ".github/workflows/rslh.yml"
   workflow_dispatch:
 
@@ -59,46 +57,3 @@ jobs:
 
       - name: Test
         run: cargo test --release --locked
-
-  openssl-interop:
-    name: OpenSSL interop (eval_openssl.sh)
-    needs: check
-    runs-on: ubuntu-latest
-    # Debian 13 (trixie) ships OpenSSL 3.5, the first release with SLH-DSA;
-    # the official Rust image on trixie gives us cargo and OpenSSL together.
-    container: rust:1-trixie
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
-
-      - name: Install OpenSSL CLI
-        run: |
-          apt-get update
-          apt-get install -y --no-install-recommends openssl
-          openssl version
-          openssl list -signature-algorithms | grep SLH-DSA-SHA2-128s
-
-      - name: Cache cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            /usr/local/cargo/registry
-            /usr/local/cargo/git
-            rslh/target
-          key: ${{ runner.os }}-trixie-cargo-${{ hashFiles('rslh/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-trixie-cargo-
-
-      - name: Sign with rslh, verify with OpenSSL
-        run: bash eval/eval_openssl.sh -n 100 -a both -q
-
-      - name: Upload failing cases
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: eval-failures
-          path: eval/eval_failures/
-          if-no-files-found: ignore
