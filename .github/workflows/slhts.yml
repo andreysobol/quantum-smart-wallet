@@ -1,0 +1,94 @@
+name: slhts
+
+permissions: {}
+
+on:
+  push:
+    paths:
+      - "rslh/**"
+      - "slhts/**"
+      - ".github/workflows/slhts.yml"
+  pull_request:
+    paths:
+      - "rslh/**"
+      - "slhts/**"
+      - ".github/workflows/slhts.yml"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  browser:
+    name: WebAssembly in headless Chromium (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: slhts
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install Rust toolchain with wasm32 target
+        run: |
+          rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown
+          rustup default stable
+          rustc --version
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rslh/target
+          key: ${{ runner.os }}-cargo-wasm-${{ hashFiles('rslh/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-wasm-
+
+      # wasm-bindgen-cli must be exactly the wasm-bindgen version in Cargo.lock.
+      - name: Read wasm-bindgen version
+        id: wbg
+        run: |
+          v=$(awk '/^name = "wasm-bindgen"$/ {getline; gsub(/version = |"/, ""); print}' ../rslh/Cargo.lock)
+          [ -n "$v" ] || { echo "wasm-bindgen not found in rslh/Cargo.lock" >&2; exit 1; }
+          echo "wasm-bindgen $v"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Install wasm-bindgen-cli
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen-cli@${{ steps.wbg.outputs.version }}
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: slhts/package-lock.json
+
+      - name: Install npm packages
+        run: npm ci
+
+      - name: Install headless Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build native rslh CLI (for cross-checks)
+        run: cargo build --release --locked --manifest-path ../rslh/Cargo.toml
+
+      - name: Build WebAssembly and TypeScript
+        run: npm run build
+
+      - name: Run browser tests
+        run: npm test
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: slhts-test-results
+          path: slhts/test-results/
+          if-no-files-found: ignore

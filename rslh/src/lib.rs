@@ -14,6 +14,9 @@
 //! Neither Rust implementation nor compiler output has been formally verified.
 //! Do not deploy to protect real funds or production signing keys.
 
+#[cfg(feature = "wasm")]
+pub mod wasm;
+
 use core::marker::PhantomData;
 use hmac::{Hmac, Mac};
 use sha2::{Digest, Sha256};

@@ -1,0 +1,10 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>rslh wasm test page</title>
+<pre id="status">loading…</pre>
+<script type="module">
+  import * as rslh from "/dist/index.js";
+  await rslh.init();
+  window.rslh = rslh;
+  document.getElementById("status").textContent = "ready";
+</script>
