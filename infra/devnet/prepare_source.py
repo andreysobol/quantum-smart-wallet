@@ -31,7 +31,8 @@ def main():
                        "patches": {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in patches}}
     assets = {"Dockerfile.sidecar": "Dockerfile.qsw", "static-server.mjs": ".qsw/static-server.mjs",
               "health.mjs": ".qsw/health.mjs", "readiness.mjs": ".qsw/readiness.mjs",
-              "genesis/registry.runtime.hex": ".qsw/registry.runtime.hex"}
+              "genesis/registry.runtime.hex": ".qsw/registry.runtime.hex",
+              "contracts.json": ".qsw/contracts.json"}
     metadata = {**source_metadata, "assets": {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in assets}}
     marker = source / ".qsw/source.json"
     if source.exists():

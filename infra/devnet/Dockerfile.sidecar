@@ -14,7 +14,8 @@ RUN cd packages/executor && node ../../node_modules/vitest/vitest.mjs run \
 ARG QSW_PUBLIC_MEMPOOL_URL=https://altmempool.bailo.london/mempool
 ENV QSW_PUBLIC_MEMPOOL_URL=${QSW_PUBLIC_MEMPOOL_URL}
 RUN node -e 'require("fs").writeFileSync("packages/devnet-ui/.env.production.local", "VITE_EXPLORER_INSTANCES=" + JSON.stringify([{name:"Quantum Smart Wallet devnet",url:process.env.QSW_PUBLIC_MEMPOOL_URL}]) + "\n")'
-RUN bun run --cwd packages/devnet-ui build
+RUN bun run --cwd packages/devnet-ui build \
+    && cp .qsw/contracts.json packages/devnet-ui/dist/contracts.json
 
 FROM build AS production-dependencies
 RUN bun install --production --frozen-lockfile

@@ -244,6 +244,26 @@ class ValidatorStateTests(unittest.TestCase):
             configure.initialize_validator_runtime(self.generated)
 
 
+class ExplorerRegistryTests(unittest.TestCase):
+    def test_public_registry_matches_chain_and_all_deployed_contracts(self):
+        registry = json.loads((ROOT / "contracts.json").read_text())
+        manifest = json.loads((ROOT.parents[1] / "slhsol/deployments/shared-devnet.json").read_text())
+        self.assertEqual(registry["chainId"], manifest["chainId"])
+        self.assertEqual(registry["genesisHash"], manifest["genesisHash"])
+        by_address = {c["address"].lower(): c for c in registry["contracts"]}
+        for field in ("demoAccount", "accountFactory", "verifier", "quantumGuardHook", "poolManager",
+                      "universalRouter", "permit2", "positionManager", "quoter", "stateView",
+                      "demoUSDC", "weth9", "hookDeployer", "stakingRegistry"):
+            entry = by_address[manifest[field].lower()]
+            self.assertEqual(entry["kind"], "contract")
+            self.assertGreater(len(entry["abi"]), 0)
+            self.assertTrue(entry["sourceUrl"].startswith("https://github.com/"))
+        self.assertEqual(by_address[manifest["deployer"].lower()]["kind"], "eoa")
+        self.assertEqual(registry["poolKey"], manifest["poolKey"])
+        # V4 pools are singleton state, not contract addresses.
+        self.assertNotIn(manifest["poolId"].lower(), by_address)
+
+
 class PublicAssetCacheTests(unittest.TestCase):
     def test_public_input_updates_refresh_without_touching_private_state(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -256,7 +276,8 @@ class PublicAssetCacheTests(unittest.TestCase):
             private.mkdir(); (private / "retain").write_text("private runtime sentinel")
             assets = {"Dockerfile.sidecar":"Dockerfile.qsw", "static-server.mjs":".qsw/static-server.mjs",
                       "health.mjs":".qsw/health.mjs", "readiness.mjs":".qsw/readiness.mjs",
-                      "genesis/registry.runtime.hex":".qsw/registry.runtime.hex"}
+                      "genesis/registry.runtime.hex":".qsw/registry.runtime.hex",
+                      "contracts.json":".qsw/contracts.json"}
             for name in assets:
                 (root / name).write_text("initial " + name)
             metadata = {"repository":prepare.REPOSITORY,"revision":prepare.REVISION,"patches":{}}
