@@ -1,0 +1,66 @@
+name: qsw-gateway
+
+services:
+  gateway:
+    build:
+      context: .
+    image: qsw-rpc-gateway:local
+    restart: unless-stopped
+    environment:
+      PORT: "8080"
+      EL_RPC_URL: ${EL_RPC_URL:-http://ethrex:8545}
+      MEMPOOL_RPC_URL: ${MEMPOOL_RPC_URL:-http://sidecar:14337/rpc/}
+      MEMPOOL_WS_URL: ${MEMPOOL_WS_URL:-ws://sidecar:14337/rpc/}
+    expose:
+      - "8080"
+    networks:
+      qsw-devnet:
+        aliases: [gateway]
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  caddy:
+    image: caddy:2.11.9-alpine
+    restart: unless-stopped
+    depends_on:
+      gateway:
+        condition: service_healthy
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:?Set PUBLIC_HOST to the public tunnel hostname}
+    ports:
+      - "127.0.0.1:${ORIGIN_PORT:-18080}:8080"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - type: bind
+        source: ${DEPLOYMENT_MANIFEST:?Set DEPLOYMENT_MANIFEST to the absolute public JSON path}
+        target: /srv/public/deployment.json
+        read_only: true
+        bind:
+          create_host_path: false
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [qsw-devnet]
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+
+networks:
+  qsw-devnet:
+    external: true
+    name: qsw-devnet
+
+volumes:
+  caddy_data:
+  caddy_config:

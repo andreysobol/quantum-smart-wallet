@@ -1,0 +1,36 @@
+{
+  admin off
+}
+
+http://{$PUBLIC_HOST}:8080 {
+  encode zstd gzip
+
+  @gateway path /rpc /rpc/ /mempool /mempool/ /healthz
+  handle @gateway {
+    request_body {
+      max_size 1MB
+    }
+    reverse_proxy gateway:8080
+  }
+
+  handle /deployment.json {
+    header Access-Control-Allow-Origin "*"
+    header Cache-Control "no-store"
+    root * /srv/public
+    file_server
+  }
+
+  # The explorer itself is built with base /explorer/; preserve that prefix.
+  handle /explorer/* {
+    reverse_proxy explorer:8080
+  }
+
+  @home path / /explorer
+  handle @home {
+    redir /explorer/ 308
+  }
+
+  handle {
+    respond "Not found" 404
+  }
+}
