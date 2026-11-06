@@ -17,8 +17,7 @@ A native Ethereum wallet that replaces classical transaction authorization with 
 - [x] [Quantum-gated Uniswap v4 hook](slhsol/src/QuantumGuardHook.sol)
 - [x] [ENSv2 names, vaults and registrar](slhsol/ensv2/)
 - [x] [Web wallet](apps/web/)
-- [x] [Account creation, faucet and gas sponsorship backend deployment](apps/web/server/)
-- [x] [Devnet, alternative mempool, RPC, explorer deployments](infra/)
+- [x] [Backend and infrastructure deployment: account creation, faucet, gas sponsorship, devnet, alternative mempool, RPC and explorer](apps/web/server/README.md)
 - [x] [Cross-implementation validation: OpenSSL, rslh and slhts](eval/)
 
 # Try our wallet
