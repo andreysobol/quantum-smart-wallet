@@ -6,6 +6,7 @@ import { TxLink } from "../components/TxLink.js";
 import { short } from "../design/helpers.js";
 import { clearEngrave, useEngrave, type EngraveState } from "../state/engrave.js";
 import { useWallet } from "../state/wallet.js";
+import { ReplaceWallet } from "./Genesis.js";
 
 const TITLES: Record<EngraveState["phase"], [string, string]> = {
   running: ["Engraving", "your seal"],
@@ -16,7 +17,7 @@ const TITLES: Record<EngraveState["phase"], [string, string]> = {
 };
 
 export function Engrave() {
-  const { config, go, finishOnboarding } = useWallet();
+  const { config, go, finishOnboarding, replacing } = useWallet();
   const { job, state } = useEngrave();
   if (!job || !state) return null;
 
@@ -116,11 +117,15 @@ export function Engrave() {
                 </TxLink>
               </div>
             )}
-            <div className="row">
-              <button className="btn" onClick={proceed}>
-                {state.mode === "restore" ? "Continue" : "Back up"}
-              </button>
-            </div>
+            {replacing?.action === "save" ? (
+              <ReplaceWallet action="save" />
+            ) : (
+              <div className="row">
+                <button className="btn" onClick={proceed}>
+                  {state.mode === "restore" ? "Continue" : "Back up"}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

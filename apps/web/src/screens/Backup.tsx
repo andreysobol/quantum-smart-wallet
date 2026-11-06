@@ -81,7 +81,10 @@ export function Backup() {
         throw new SignerError("key_mismatch", "This backup holds a different key than this wallet.");
       }
       setCheckPass("");
-      setWallet({ ...wallet, backedUp: true });
+      if (!setWallet({ ...wallet, backedUp: true })) {
+        setError("Another tab replaced the wallet on this device, so this check was not recorded.");
+        return;
+      }
       finishOnboarding();
       setStage("sealed");
     } catch (failure) {

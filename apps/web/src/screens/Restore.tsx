@@ -4,6 +4,7 @@ import { readBackupFile } from "../crypto/signer.js";
 import { SignerError } from "../crypto/types.js";
 import { describeError } from "../state/engrave.js";
 import { useWallet } from "../state/wallet.js";
+import { ReplaceWallet } from "./Genesis.js";
 
 function restoreMessage(error: unknown): string {
   if (error instanceof SignerError && error.code === "bad_passphrase") return "Wrong passphrase for this backup file.";
@@ -37,6 +38,7 @@ export function Restore() {
       const backup = await readBackupFile(file);
       const { publicKey, meta } = await signer.importBackup(backup, pass);
       setPass("");
+      setBusy(false);
       restoreWallet(publicKey, meta);
     } catch (failure) {
       setError(restoreMessage(failure));
@@ -86,6 +88,7 @@ export function Restore() {
           Back
         </button>
       </div>
+      <ReplaceWallet action="restore" />
       {error && (
         <p className="err mono" role="alert">
           {error}
