@@ -25,6 +25,12 @@ Mumbai ethrex devnet profile, chain ID 1337.
 See [the contract guide](slhsol/QUANTUM_ACCOUNT.md) for signing, deployment, tests and the
 distinction between native execution and mempool admission.
 
+## ensv2 — Devnet ENSv2 names
+
+`qsw.eth` subnames on the shared devnet, built on the pinned official ENSv2 contracts and paid in dUSDC.
+Each QuantumAccount's names are held by its own `ENSVault`, which only the account controls, and resolve to
+the account. These are devnet names, not public `.eth` names. See [ensv2/README.md](ensv2/README.md).
+
 ## Shared devnet
 
 The reproducible demo stack uses chain **81411338** and the pinned ethrex
