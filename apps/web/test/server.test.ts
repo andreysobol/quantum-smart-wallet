@@ -213,7 +213,8 @@ describe("with an operator key (fake chain)", () => {
     expect(await minted.json()).toMatchObject({ account: ACCOUNT, token: manifest.demoUSDC, amount: "1000000000", blockNumber: 0x99 });
     const tx = parseTransaction(fake.sent[0]! as `0x${string}`);
     expect(tx.data).toBe(encodeFunctionData({ abi: demoUsdcAbi, functionName: "mint", args: [ACCOUNT, 1_000_000_000n] }));
-    // A fourth request for the same account within 10 minutes is rate limited.
+    // Only mints count against the account: two more make three, then it is rate limited for 10 minutes.
+    for (let i = 0; i < 2; i++) expect((await faucetRoute(post("/api/faucet", { account: ACCOUNT }), ctx)).status).toBe(200);
     expect(await errorOf(await faucetRoute(post("/api/faucet", { account: ACCOUNT }), ctx))).toMatchObject({ status: 429, code: "rate_limited" });
     const capped = setup({ QSW_OPERATOR_PRIVATE_KEY: operatorKey });
     Object.assign(capped.fake, { registered: new Set([ACCOUNT.toLowerCase()]), minter: operator.address, usdcBalance: 5_000_000_000n });

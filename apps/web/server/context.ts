@@ -1,7 +1,7 @@
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import type { Address } from "../shared/types.js";
 import { readEnv, type ServerEnv } from "./env.js";
-import { ApiFailure, RateLimiter } from "./http.js";
+import { ApiFailure, RateLimiter, RecentKeys } from "./http.js";
 import { httpRpc, parseManifest, verifyChain, type Deployment, type Rpc } from "./manifest.js";
 import { Operator, type OperatorOptions } from "./operator.js";
 
@@ -44,6 +44,8 @@ export class ServerContext {
   readonly env: ServerEnv;
   readonly now: () => number;
   readonly limits;
+  /** Signing hashes co-signed in the last hour (the longest deadline): a replay is not charged to the account again. */
+  readonly cosigned: RecentKeys;
   private readonly fetchManifest: (url: string) => Promise<unknown>;
   private readonly rpcFor: (url: string) => Rpc;
   private readonly operatorOptions: OperatorOptions;
@@ -65,6 +67,7 @@ export class ServerContext {
       sponsorIp: new RateLimiter(40, 10 * 60_000, this.now),
       sponsorAccount: new RateLimiter(15, 10 * 60_000, this.now),
     };
+    this.cosigned = new RecentKeys(hour, this.now);
     for (const problem of this.env.problems) console.warn(`[api] configuration: ${problem}`);
   }
 
@@ -80,7 +83,8 @@ export class ServerContext {
   }
 
   private async loadChain(): Promise<Chain> {
-    const base = parseManifest(await this.fetchManifest(this.env.deploymentUrl), { rpcUrl: this.env.rpcUrl, mempoolUrl: this.env.mempoolUrl });
+    const { rpcUrl, mempoolUrl, genesisHash } = this.env;
+    const base = parseManifest(await this.fetchManifest(this.env.deploymentUrl), { rpcUrl, mempoolUrl, genesisHash });
     const rpc = this.rpcFor(base.rpcUrl);
     const deployment = await verifyChain(base, { rpc, mempool: this.rpcFor(base.mempoolUrl) });
     return {

@@ -6,7 +6,7 @@ import { formatUnits } from "../shared/format.js";
 import { cosignAsSponsor, fromWire, FrameTxError, signingHash, toWire, txHash } from "../shared/frameTx.js";
 import type { Address, CreateAccountResponse, FaucetResponse, Hex, PublicConfig, SponsorResponse } from "../shared/types.js";
 import { defaultContext, type ServerContext } from "./context.js";
-import { ApiFailure, BODY_LIMIT, clientIp, enforce, fail, json, readJson, respond } from "./http.js";
+import { ApiFailure, BODY_LIMIT, clientIp, enforce, fail, json, readJson, requireSameOriginJson, respond } from "./http.js";
 import type { Deployment, Rpc } from "./manifest.js";
 import { checkSponsorPolicy, MAX_DEADLINE_SECONDS } from "./policy.js";
 
@@ -58,6 +58,7 @@ export function configRoute(_request: Request, ctx: ServerContext = defaultConte
 /** POST /api/account {publicKey}: idempotent; the operator pays the stake for new accounts. */
 export function accountRoute(request: Request, ctx: ServerContext = defaultContext()): Promise<Response> {
   return respond(async () => {
+    requireSameOriginJson(request);
     if (!ctx.env.operatorKey) fail(503, "not_configured", "Account creation is not available on this server (no operator key configured).");
     enforce(ctx.limits.accountIp, clientIp(request), "account creation");
     const publicKey = field(await readJson(request, BODY_LIMIT.small), "publicKey");
@@ -74,6 +75,10 @@ export function accountRoute(request: Request, ctx: ServerContext = defaultConte
     const existing: CreateAccountResponse = { account, salt, publicKey: pk, created: false, txHash: null, blockNumber: null, stakeWei: stake.toString() };
     if (await isRegistered(rpc, factory, account)) return json(existing);
 
+    const maxStake = ctx.env.maxAccountStake;
+    if (stake > maxStake) {
+      fail(503, "operator_unavailable", `The account factory asks for a ${formatUnits(stake, 18)} ETH stake, above this server's limit of ${formatUnits(maxStake, 18)} ETH.`);
+    }
     if ((await operator.balance()) < stake + ctx.env.minOperatorBalance) {
       fail(503, "operator_unavailable", "The operator is out of funds for new accounts. Please try again later.");
     }
@@ -94,12 +99,12 @@ export function accountRoute(request: Request, ctx: ServerContext = defaultConte
 /** POST /api/faucet {account}: mint test dUSDC to a registered account below the balance cap. */
 export function faucetRoute(request: Request, ctx: ServerContext = defaultContext()): Promise<Response> {
   return respond(async () => {
+    requireSameOriginJson(request);
     if (!ctx.env.operatorKey) fail(503, "not_configured", "The faucet is not available on this server (no operator key configured).");
     enforce(ctx.limits.faucetIp, clientIp(request), "faucet");
     const raw = field(await readJson(request, BODY_LIMIT.small), "account");
     if (typeof raw !== "string" || !isAddress(raw, { strict: false })) fail(400, "bad_request", "account must be a 0x-prefixed 20-byte address.");
     const account = getAddress(raw as string);
-    enforce(ctx.limits.faucetAccount, account.toLowerCase(), "faucet");
     const { deployment, rpc, operator } = await ctx.chain();
     if (!operator) return fail(503, "not_configured", "The faucet is not available on this server.");
     const usdc = deployment.contracts.demoUSDC;
@@ -117,6 +122,8 @@ export function faucetRoute(request: Request, ctx: ServerContext = defaultContex
       decodeFunctionResult({ abi: demoUsdcAbi, functionName: "MINTER", data }),
     );
     if (minter.toLowerCase() !== operator.address.toLowerCase()) fail(503, "operator_unavailable", "The operator key is not the dUSDC minter.");
+    // Charged only when this request mints: anyone can name any account, so refusals must not use up its allowance.
+    enforce(ctx.limits.faucetAccount, account.toLowerCase(), "faucet");
     const amount = ctx.env.faucetAmount;
     const sent = await operator.send({ to: usdc, data: encodeFunctionData({ abi: demoUsdcAbi, functionName: "mint", args: [account, amount] }) });
     const body: FaucetResponse = { account, token: usdc, amount: amount.toString(), txHash: sent.hash, blockNumber: sent.blockNumber };
@@ -127,6 +134,7 @@ export function faucetRoute(request: Request, ctx: ServerContext = defaultContex
 /** POST /api/sponsor {tx}: strict policy, then co-sign. The server never submits the transaction. */
 export function sponsorRoute(request: Request, ctx: ServerContext = defaultContext()): Promise<Response> {
   return respond(async () => {
+    requireSameOriginJson(request);
     if (!ctx.env.sponsorKey) fail(503, "not_configured", "Swap sponsorship is not available on this server (no sponsor key configured).");
     enforce(ctx.limits.sponsorIp, clientIp(request), "sponsorship");
     const wire = field(await readJson(request, BODY_LIMIT.sponsor), "tx");
@@ -137,15 +145,21 @@ export function sponsorRoute(request: Request, ctx: ServerContext = defaultConte
       if (error instanceof FrameTxError) return fail(400, "bad_request", `Invalid transaction: ${error.message}.`);
       throw error;
     }
-    enforce(ctx.limits.sponsorAccount, tx.sender, "sponsorship");
     const { deployment, rpc, sponsor } = await ctx.chain();
     if (!sponsor) return fail(503, "not_configured", "Swap sponsorship is not available on this server.");
     const env = ctx.env;
     await checkSponsorPolicy(tx, { deployment, sponsor: sponsor.address, maxSwapUsdc: env.maxSwapUsdc, maxSwapWeth: env.maxSwapWeth, reserve: env.minOperatorBalance, rpc });
+    // Charged only now that the account's SLH-DSA signature verified, so naming someone else's account
+    // costs it nothing. A signed swap is public once submitted: replaying it is not charged again.
+    const digest = signingHash(tx);
+    if (!ctx.cosigned.has(digest)) {
+      enforce(ctx.limits.sponsorAccount, tx.sender, "sponsorship");
+      ctx.cosigned.add(digest);
+    }
     const signed = await cosignAsSponsor(tx, sponsor).catch((error: unknown) => {
       throw new ApiFailure(500, "internal", `Co-signing failed: ${error instanceof Error ? error.message : "unknown error"}.`);
     });
-    const body: SponsorResponse = { sponsor: sponsor.address, signingHash: signingHash(signed), txHash: txHash(signed), tx: toWire(signed) };
+    const body: SponsorResponse = { sponsor: sponsor.address, signingHash: digest, txHash: txHash(signed), tx: toWire(signed) };
     return json(body);
   });
 }
