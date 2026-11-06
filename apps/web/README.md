@@ -82,6 +82,42 @@ QSW_LIVE=1 npx playwright test -c playwright.live.config.ts                     
 QSW_LIVE=1 QSW_LIVE_URL=https://quantum-smart-wallet.vercel.app npx playwright test -c playwright.live.config.ts
 ```
 
+## Devnet ENSv2 names
+
+The **Names** tab registers `<label>.qsw.eth`. These are Devnet ENSv2 names on chain 81411338 only: they do
+not reserve public `.eth` names. The namespace and its contracts are described in
+[`ensv2/README.md`](../../ensv2/README.md).
+
+**Typing a name.** The app normalizes it with ENSIP-15 and reads availability and the registrar's price.
+You choose 1–5 years.
+
+**Registering.** One PQ-signed transaction does everything: it opens the account's name vault (first
+time only), approves exactly the quoted dUSDC, registers the name to the vault, and points it at the account.
+The server sponsors it only as the explicit `ens-register` template (`server/ensPolicy.ts`); swaps keep their
+own policy.
+
+**Ownership.** The **vault** owns the name token and the **account** controls the vault. The list under
+"Your names" re-checks both on chain, plus forward resolution through `UniversalResolverV2`. The name chosen
+as the wallet name appears in the header and the Portfolio only while those checks hold.
+
+`/api/config` serves the namespace as `ens`, which is null when it is missing or fails its on-chain check.
+Only names are disabled in that case. To verify:
+
+```bash
+QSW_LIVE_READ=1 npx vitest run test/ens.config.test.ts test/ens.chain.live.test.ts   # namespace wiring, vault control
+QSW_LIVE=1 npx playwright test -c playwright.live.config.ts e2e/names.live.spec.ts     # spends devnet funds
+```
+
+The live run checks the following on chain:
+- the dUSDC payment
+- the vault as token owner and the account as controller
+- resolution to the account
+- the receipt, the sponsor as payer and PQ validation in frame 0
+- the mempool's admission checks
+
+It then expects the sponsor to refuse the taken name, a payment other than the quote, a forged signature and
+a replay.
+
 ## Deploying to Vercel
 
 1. Import the repository as a new project. On the **Build and Deployment** settings page, set:
@@ -204,7 +240,8 @@ and the sponsor address derived from the key (`0xb7Ca…52c1` on the shared devn
 
 ## Limitations
 
-- Devnet only (chain 81411338). The tokens have no value.
+- Devnet only (chain 81411338). The tokens have no value, and `qsw.eth` names are Devnet ENSv2 names, not
+  public `.eth` names.
 - Rate limits are kept in memory per function instance. They are best effort, not a security
   boundary.
 - Quotes assume the swap does not cross an initialized tick (single-range math). The minimum
