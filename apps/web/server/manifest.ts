@@ -18,6 +18,12 @@ export function httpRpc(url: string): Rpc {
   };
 }
 
+/**
+ * Genesis of the shared devnet (chain CHAIN_ID). The manifest and the RPC must both match it, so a
+ * changed manifest cannot move the server to another chain; QSW_GENESIS_HASH replaces it explicitly.
+ */
+export const DEVNET_GENESIS_HASH: Hex = "0xd3f5fc1f656bd0d05f18cca9cad3a2cc7ef373042c1890862c379a61e3e89f50";
+
 export interface Deployment {
   chainId: number;
   genesisHash: Hex;
@@ -67,14 +73,18 @@ export function computePoolId(key: PoolKey): Hex {
   );
 }
 
-/** Validate the published manifest (shape, chain, pool key/id consistency). Static checks only. */
-export function parseManifest(json: unknown, overrides: { rpcUrl?: string | null; mempoolUrl?: string | null } = {}): Omit<Deployment, "accountInitialStake"> {
+/** Validate the published manifest (shape, pinned chain and genesis, pool key/id consistency). Static checks only. */
+export function parseManifest(
+  json: unknown,
+  overrides: { rpcUrl?: string | null; mempoolUrl?: string | null; genesisHash?: Hex | null } = {},
+): Omit<Deployment, "accountInitialStake"> {
   if (typeof json !== "object" || json === null || Array.isArray(json)) return bad("not an object");
   const m = json as Record<string, unknown>;
   if (m.chainId !== CHAIN_ID) bad(`chainId must be ${CHAIN_ID}`);
   if (m.status !== undefined && m.status !== "ready") bad(`status is ${String(m.status)}`);
   const genesisHash = str(m, "genesisHash");
   if (!/^0x[0-9a-fA-F]{64}$/.test(genesisHash)) bad("genesisHash is not 32 bytes");
+  if (genesisHash.toLowerCase() !== (overrides.genesisHash ?? DEVNET_GENESIS_HASH).toLowerCase()) bad("genesisHash is not the pinned devnet genesis");
   const nativeProfile = str(m, "nativeProfile");
   if (!nativeProfile.includes(NATIVE_PROFILE)) bad(`nativeProfile must be ${NATIVE_PROFILE}`);
   const contracts: DeploymentContracts = {

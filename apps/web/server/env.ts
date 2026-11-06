@@ -13,6 +13,10 @@ export interface ServerEnv {
   rpcUrl: string | null;
   mempoolUrl: string | null;
   deploymentUrl: string;
+  /** Replaces the pinned devnet genesis that the manifest and RPC must match; null keeps the pin. */
+  genesisHash: Hex | null;
+  /** Largest account stake (wei) the operator pays; the factory's INITIAL_STAKE is read from the chain. */
+  maxAccountStake: bigint;
   faucetAmount: bigint;
   faucetMaxBalance: bigint;
   maxSwapUsdc: bigint;
@@ -45,6 +49,16 @@ function amount(source: Record<string, string | undefined>, name: string, fallba
   return BigInt(raw);
 }
 
+function hash(source: Record<string, string | undefined>, name: string, problems: string[]): Hex | null {
+  const raw = source[name]?.trim();
+  if (!raw) return null;
+  if (!/^0x[0-9a-fA-F]{64}$/.test(raw)) {
+    problems.push(`${name} is not a 0x-prefixed 32-byte hash; ignoring it`);
+    return null;
+  }
+  return raw.toLowerCase() as Hex;
+}
+
 function url(source: Record<string, string | undefined>, name: string, problems: string[]): string | null {
   const raw = source[name]?.trim();
   if (!raw) return null;
@@ -68,6 +82,8 @@ export function readEnv(source: Record<string, string | undefined> = process.env
     rpcUrl: url(source, "QSW_RPC_URL", problems),
     mempoolUrl: url(source, "QSW_MEMPOOL_URL", problems),
     deploymentUrl: url(source, "QSW_DEPLOYMENT_URL", problems) ?? DEFAULT_DEPLOYMENT_URL,
+    genesisHash: hash(source, "QSW_GENESIS_HASH", problems),
+    maxAccountStake: amount(source, "QSW_MAX_ACCOUNT_STAKE", 12_000_000_000_000_000n, problems),
     faucetAmount: amount(source, "QSW_FAUCET_AMOUNT", 1_000_000000n, problems),
     faucetMaxBalance: amount(source, "QSW_FAUCET_MAX_BALANCE", 5_000_000000n, problems),
     maxSwapUsdc: amount(source, "QSW_MAX_SWAP_USDC", 1_000_000000n, problems),
