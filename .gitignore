@@ -1,2 +1,4 @@
 /.state/
 /.secrets/
+/.vercel/
+/.env*
