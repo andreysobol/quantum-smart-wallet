@@ -162,10 +162,18 @@ and the sponsor address derived from the key (`0xb7Ca…52c1` on the shared devn
 
 ## Security model
 
-- **Signing key.** The SLH-DSA secret key is generated inside the signer worker and is decrypted
-  only there, only while signing. At rest it is AES-GCM encrypted under a non-extractable device
-  key in IndexedDB. Backup files are encrypted with your passphrase (PBKDF2-SHA256 with 600,000
-  iterations, then AES-GCM-256). The key never reaches the main thread or the server.
+- **Signing key.** The SLH-DSA secret key is generated inside the signer worker. The app decrypts
+  it only there, only while it signs or exports, checks or imports a backup, and never sends it
+  to the page's own code or to the server. Backup files are encrypted with your passphrase
+  (PBKDF2-SHA256 with 600,000 iterations, then AES-GCM-256).
+- **Key at rest.** In IndexedDB the key is AES-GCM encrypted under a non-extractable device key
+  that is stored in the same record. That keeps the raw key out of casual inspection of the
+  browser's files, and no more:
+  - "Non-extractable" stops a script from exporting the device key, not from using it. Any script
+    running on this origin, such as an XSS payload or a compromised dependency, can open the key
+    store, decrypt the key and send it elsewhere. Unlike misusing the signer while the page is
+    open, a stolen key keeps working after the tab is closed.
+  - Anyone with a copy of the browser profile has both the device key and the ciphertext.
 - **Server keys.** The operator and sponsor keys come only from the server environment. They are
   never logged, returned by the API or included in the client bundle. The repository's
   `.vercelignore` keeps `.secrets/`, `.state/` and `.env*` files (except `.env.example`) out of
@@ -198,4 +206,7 @@ and the sponsor address derived from the key (`0xb7Ca…52c1` on the shared devn
   output, set by your slippage tolerance, still protects the swap on chain.
 - Keys live in one browser profile, so clearing site data deletes them. Keep the backup file and
   its passphrase.
+- The app opens one wallet per browser profile. Creating or restoring a different wallet asks first.
+  The replaced wallet's encrypted key stays in the browser, but the app opens it again only from
+  its backup file.
 - Not audited.
