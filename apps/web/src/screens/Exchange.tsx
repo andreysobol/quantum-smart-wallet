@@ -15,13 +15,14 @@ import {
   type TokenKey,
 } from "../chain/amounts.js";
 import { loadBalances } from "../chain/balances.js";
-import { startSwap, useSession } from "../chain/session.js";
+import { showLive, startSwap, useSession } from "../chain/session.js";
 import { PLAN_MODES, swapFrameLabels, tokenSymbol } from "../chain/swap.js";
 import type { Balances } from "../chain/types.js";
 import { TokenMark } from "../components/TokenMark.js";
 import { useWallet } from "../state/wallet.js";
 
 const SLIPPAGE_BPS = 50;
+const REFRESH_MS = 15_000;
 /** Gas a sponsored swap uses (demo receipt: 1,727,304), for the fee estimate shown before signing. */
 const EST_SWAP_GAS = 1_730_000n;
 const ERROR_STYLE = { color: "var(--sealt)" } as const;
@@ -33,6 +34,8 @@ export function Exchange() {
   const [direction, setDirection] = useState<SwapDirection>("USDC_TO_WETH");
   const [amount, setAmount] = useState("");
   const [balances, setBalances] = useState<Balances | null>(null);
+  const [balanceError, setBalanceError] = useState<string | null>(null);
+  const [balanceAttempt, setBalanceAttempt] = useState(0);
   const [pool, setPool] = useState<PoolState | null>(null);
   const [poolError, setPoolError] = useState<string | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
@@ -41,16 +44,25 @@ export function Exchange() {
   const to = tokenOut(direction);
   const amountIn = parseAmountInput(amount, TOKEN_DECIMALS[from]);
 
+  // Balances: on entry, after each swap, on Retry and every 15 s, so one failed read never sticks.
   useEffect(() => {
     if (!config || !wallet) return;
     let live = true;
-    loadBalances(config, wallet.account)
-      .then((b) => live && setBalances(b))
-      .catch(() => live && setBalances(null));
+    const load = () =>
+      loadBalances(config, wallet.account)
+        .then((b) => {
+          if (!live) return;
+          setBalances(b);
+          setBalanceError(null);
+        })
+        .catch((e: unknown) => live && setBalanceError(e instanceof Error ? e.message : "Could not read balances."));
+    void load();
+    const interval = setInterval(load, REFRESH_MS);
     return () => {
       live = false;
+      clearInterval(interval);
     };
-  }, [config, wallet, session.live?.running]);
+  }, [config, wallet, session.live?.running, balanceAttempt]);
 
   // Fresh pool state for the live quote: debounced on input, refreshed every 15 s.
   useEffect(() => {
@@ -65,7 +77,7 @@ export function Exchange() {
         })
         .catch(() => live && setPoolError("Could not read the pool price."));
     const debounce = setTimeout(load, 350);
-    const interval = setInterval(load, 15_000);
+    const interval = setInterval(load, REFRESH_MS);
     return () => {
       live = false;
       clearTimeout(debounce);
@@ -106,7 +118,7 @@ export function Exchange() {
   let signLocked = false;
   if (running) signLabel = "View swap in progress";
   else if (!config.operatorReady || !sponsor) [signLabel, signLocked] = ["Sponsor unavailable", true];
-  else if (!balances) [signLabel, signLocked] = ["Reading balances…", true];
+  else if (!balances) [signLabel, signLocked] = [balanceError ? "Balances unavailable" : "Reading balances…", true];
   else if (balances.usdc === 0n && balances.weth === 0n) [signLabel, signLocked] = ["Get devnet funds first", true];
   else if (!amountIn || amountIn <= 0n) [signLabel, signLocked] = ["Enter an amount", true];
   else if (balance !== null && amountIn > balance) [signLabel, signLocked] = [`Not enough ${fromSym}`, true];
@@ -114,7 +126,11 @@ export function Exchange() {
   else if (!quote || !minOut || minOut <= 0n) [signLabel, signLocked] = [poolError ? "Pool price unavailable" : "Quoting…", true];
 
   const sign = () => {
-    if (running) return go("proof");
+    if (running) {
+      // Proof may still be showing a replay of an older swap: point it back at this one.
+      showLive();
+      return go("proof");
+    }
     if (signLocked || !amountIn) return;
     try {
       setStartError(null);
@@ -242,6 +258,16 @@ export function Exchange() {
             <p className="lab" role="alert" style={ERROR_STYLE}>
               {startError ?? poolError}
             </p>
+          )}
+          {balanceError && (
+            <div className="row">
+              <p className="lab" role="alert" style={ERROR_STYLE}>
+                {balanceError}
+              </p>
+              <button type="button" className="tbtn" onClick={() => setBalanceAttempt((n) => n + 1)}>
+                Retry
+              </button>
+            </div>
           )}
         </div>
       </div>
