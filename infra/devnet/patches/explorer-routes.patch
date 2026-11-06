@@ -83,10 +83,10 @@ index 8e978fc..6f23afe 100644
    return createRouter(history ? { routeTree, history, basepath: "/explorer" } : { routeTree, basepath: "/explorer" });
 diff --git a/packages/devnet-ui/src/chain/api.ts b/packages/devnet-ui/src/chain/api.ts
 new file mode 100644
-index 0000000..5642412
+index 0000000..29de2ce
 --- /dev/null
 +++ b/packages/devnet-ui/src/chain/api.ts
-@@ -0,0 +1,119 @@
+@@ -0,0 +1,129 @@
 +import {useInfiniteQuery, useQuery} from "@tanstack/react-query";
 +import {z} from "zod";
 +import {rpcCall} from "../rpc/client";
@@ -206,17 +206,28 @@ index 0000000..5642412
 +
 +export function sharedMempoolUrl() {return new URL("/mempool",window.location.origin).href;}
 +export function isSharedMempool(url:string) {return url.replace(/\/+$/,"")===sharedMempoolUrl();}
++
++/** Mined EL frames use `to`; submission/admission frames use `target`.
++ * A present null is sender shorthand, so nullish coalescing is incorrect here.
++ */
++export function frameDestination(frame:unknown):unknown {
++  if(typeof frame!=="object"||frame===null)return undefined;
++  if("to" in frame)return frame.to;
++  if("target" in frame)return frame.target;
++  return undefined;
++}
 diff --git a/packages/devnet-ui/src/chain/explorer.test.tsx b/packages/devnet-ui/src/chain/explorer.test.tsx
 new file mode 100644
-index 0000000..bce9589
+index 0000000..21bff3f
 --- /dev/null
 +++ b/packages/devnet-ui/src/chain/explorer.test.tsx
-@@ -0,0 +1,135 @@
+@@ -0,0 +1,154 @@
 +import {beforeEach, describe, expect, it, vi} from "vitest";
 +import {screen, waitFor} from "@testing-library/react";
 +import userEvent from "@testing-library/user-event";
 +import {renderApp} from "../testUtils";
-+import {erc20Contracts, formatUnits, registrySchema, safeSourceUrl} from "./api";
++import minedNative from "./fixtures/mined-native-transaction.json";
++import {erc20Contracts, formatUnits, frameDestination, registrySchema, safeSourceUrl} from "./api";
 +
 +const ADDRESS="0x"+"12".repeat(20);
 +const OTHER="0x"+"34".repeat(20);
@@ -317,19 +328,32 @@ index 0000000..bce9589
 +    expect(await screen.findByText("RPC unavailable")).toBeTruthy();
 +    expect(screen.getByText(/Indexed through block unknown of unknown/)).toBeTruthy();
 +  });
-+  it("retains the native transaction link without losing chain receipt facts",async()=>{
-+    mockChain({qsw_explorerTransaction:{transaction:{type:"0x6",sender:OTHER,nonceSeq:"0x7",nonceKeys:["0x0"],frames:[{target:null},{target:OTHER}]},receipt:{status:"0x1",gasUsed:"0x5208",payer:OTHER},block:{number:10,hash:HASH,timestamp:1700000000}}});
-+    renderApp({path:"/chain/tx/"+HASH,instances:[]});
++  it("renders every frame target from the actual mined EL RPC shape and retains native details",async()=>{
++    // Captured from eth_getTransactionByHash on the public shared chain, block0x198.
++    // This differs from the submission codec: every mined frame has `to`, not `target`.
++    expect(minedNative.transaction.frames.every(frame=>"to" in frame&&!("target" in frame))).toBe(true);
++    mockChain({qsw_explorerTransaction:{transaction:minedNative.transaction,receipt:minedNative.receipt,block:minedNative.block}});
++    const {unmount}=renderApp({path:"/chain/tx/"+minedNative.transaction.hash,instances:[]});
 +    const link=await screen.findByRole("link",{name:"View native frames and mempool admission details"});
-+    expect(link.getAttribute("href")).toContain("/tx/"+HASH);
++    expect(link.getAttribute("href")).toContain("/tx/"+minedNative.transaction.hash);
 +    expect(screen.getByText("Native frame transaction")).toBeTruthy();
-+    expect(screen.getByText("2 frames")).toBeTruthy();
-+    expect(screen.getByText("(sender)")).toBeTruthy();
-+    expect(screen.queryByText("Contract creation frame")).toBeNull();
-+    expect(screen.getByText("Payer")).toBeTruthy();
-+    expect(screen.getByText("Nonce sequence").nextElementSibling?.textContent).toBe("7");
-+    expect(screen.getByText("Nonce keys").nextElementSibling?.textContent).toBe("0x0");
++    expect(screen.getByText("5 frames")).toBeTruthy();
++    const targets=screen.getByText("Frame targets").nextElementSibling as HTMLElement;
++    for(const frame of minedNative.transaction.frames) {
++      expect(targets.querySelector(`a[title="${frame.to}"]`)).not.toBeNull();
++    }
++    expect(screen.queryByText("Target unavailable")).toBeNull();
 +    expect(screen.queryByText("Contract creation")).toBeNull();
++    expect(screen.getByText("Payer")).toBeTruthy();
++    expect(screen.getByText("Nonce sequence").nextElementSibling?.textContent).toBe(String(Number(minedNative.transaction.nonceSeq)));
++    expect(screen.getByText("Nonce keys").nextElementSibling?.textContent).toBe(minedNative.transaction.nonceKeys.join(", "));
++    // Exercise null sender shorthand in the same mined shape, plus the admission alias.
++    unmount();
++    mockChain({qsw_explorerTransaction:{transaction:{...minedNative.transaction,frames:[{...minedNative.transaction.frames[0],to:null},{target:null}]},receipt:minedNative.receipt,block:minedNative.block}});
++    renderApp({path:"/chain/tx/"+minedNative.transaction.hash,instances:[]});
++    await screen.findByText("2 frames");
++    expect(screen.getAllByText("(sender)")).toHaveLength(2);
++    expect(screen.queryByText("Target unavailable")).toBeNull();
 +  });
 +});
 +describe("chain display guards",()=>{
@@ -342,20 +366,110 @@ index 0000000..bce9589
 +  });
 +  it("keeps bigint balances precise and blocks executable source links",()=>{
 +    expect(formatUnits("123456789012345678901",18,8)).toBe("123.45678901");
++    expect(frameDestination({to:ADDRESS,target:OTHER})).toBe(ADDRESS);
++    expect(frameDestination({to:null,target:OTHER})).toBeNull();
++    expect(frameDestination({target:OTHER})).toBe(OTHER);
++    expect(frameDestination({target:null})).toBeNull();
++    expect(frameDestination({})).toBeUndefined();
 +    expect(safeSourceUrl("javascript:alert(1)")).toBeNull();
 +    expect(safeSourceUrl("https://github.com/example/wallet")).toBe("https://github.com/example/wallet");
 +    expect(registrySchema.safeParse({...registry,chainId:1337}).success).toBe(false);
 +  });
 +});
+diff --git a/packages/devnet-ui/src/chain/fixtures/mined-native-transaction.json b/packages/devnet-ui/src/chain/fixtures/mined-native-transaction.json
+new file mode 100644
+index 0000000..e063e91
+--- /dev/null
++++ b/packages/devnet-ui/src/chain/fixtures/mined-native-transaction.json
+@@ -0,0 +1,79 @@
++{
++  "provenance": {
++    "rpcUrl": "https://altmempool.bailo.london/rpc",
++    "chainId": 81411338,
++    "method": "eth_getTransactionByHash",
++    "capturedAtUtc": "2026-11-06T05:01:18.262821+00:00",
++    "note": "Actual mined RPC fields retained; unrelated transaction signatures and receipt logs omitted."
++  },
++  "transaction": {
++    "hash": "0x5372c2b13aa087361c62475f8b28f843012a9fb2ae4e4692878d80efcb28fa1e",
++    "type": "0x6",
++    "sender": "0x19b17f47284db0b254c62eb9ad6ce95538e3bc30",
++    "nonceKeys": [
++      "0x0"
++    ],
++    "nonceSeq": "0x6",
++    "frames": [
++      {
++        "data": "0x634b01e8",
++        "flags": "0x2",
++        "gasLimit": "0x249f00",
++        "mode": "0x1",
++        "stateLimit": "0x0",
++        "to": "0x19b17f47284db0b254c62eb9ad6ce95538e3bc30",
++        "value": "0x0"
++      },
++      {
++        "data": "0x",
++        "flags": "0x1",
++        "gasLimit": "0x7530",
++        "mode": "0x1",
++        "stateLimit": "0x0",
++        "to": "0xb7ca4c821205f6721bacbd48052bebf6a1f252c1",
++        "value": "0x0"
++      },
++      {
++        "data": "0x095ea7b3000000000000000000000000389e7536ab422df13370e7d713cabd22bde9d6c900000000000000000000000000000000000000000000000000000000000f4240",
++        "flags": "0x4",
++        "gasLimit": "0x13880",
++        "mode": "0x2",
++        "stateLimit": "0x186a0",
++        "to": "0x3636a1d9a30c46264822f1a47975707793770f42",
++        "value": "0x0"
++      },
++      {
++        "data": "0x87517c450000000000000000000000003636a1d9a30c46264822f1a47975707793770f42000000000000000000000000bf8badae6056b59bec3d993936ab8627aa2a4d3400000000000000000000000000000000000000000000000000000000000f4240000000000000000000000000000000000000000000000000000000006aed522f",
++        "flags": "0x4",
++        "gasLimit": "0x13880",
++        "mode": "0x2",
++        "stateLimit": "0x186a0",
++        "to": "0x389e7536ab422df13370e7d713cabd22bde9d6c9",
++        "value": "0x0"
++      },
++      {
++        "data": "0x3593564c000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000006aed522f00000000000000000000000000000000000000000000000000000000000000011000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000360000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000003060c0f00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000260000000000000000000000000000000000000000000000000000000000000018000000000000000000000000000000000000000000000000000000000000000200000000000000000000000003636a1d9a30c46264822f1a47975707793770f42000000000000000000000000edae4f23add2aabbfcad8972801e6fa90ad4bbf20000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c000000000000000000000000c83ee6088f08ca9307c10a54a32f7cfb748f4080000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000f424000000000000000000000000000000000000000000000000000019945ca26200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000000000000000000000003636a1d9a30c46264822f1a47975707793770f4200000000000000000000000000000000000000000000000000000000000f42400000000000000000000000000000000000000000000000000000000000000040000000000000000000000000edae4f23add2aabbfcad8972801e6fa90ad4bbf200000000000000000000000000000000000000000000000000019945ca262000",
++        "flags": "0x0",
++        "gasLimit": "0xf4240",
++        "mode": "0x2",
++        "stateLimit": "0x30d40",
++        "to": "0xbf8badae6056b59bec3d993936ab8627aa2a4d34",
++        "value": "0x0"
++      }
++    ],
++    "blockNumber": "0x198",
++    "blockHash": "0xa2f57708ddc93006430a3e07fb1cfdc5858d3a725fc521d730bc8eb4cc6cfd9b"
++  },
++  "receipt": {
++    "status": "0x1",
++    "gasUsed": "0x1a5b48",
++    "payer": "0xb7ca4c821205f6721bacbd48052bebf6a1f252c1",
++    "effectiveGasPrice": "0x3b9aca07",
++    "contractAddress": null
++  },
++  "block": {
++    "number": "0x198",
++    "hash": "0xa2f57708ddc93006430a3e07fb1cfdc5858d3a725fc521d730bc8eb4cc6cfd9b",
++    "timestamp": "0x6aed4b39"
++  }
++}
 diff --git a/packages/devnet-ui/src/ui/screens/ChainScreens.tsx b/packages/devnet-ui/src/ui/screens/ChainScreens.tsx
 new file mode 100644
-index 0000000..5caef45
+index 0000000..2e305f7
 --- /dev/null
 +++ b/packages/devnet-ui/src/ui/screens/ChainScreens.tsx
 @@ -0,0 +1,127 @@
 +import {useState, type ReactNode} from "react";
 +import {Link} from "@tanstack/react-router";
-+import {ADDRESS, CHAIN_ID, HASH, erc20Contracts, formatUnits, safeSourceUrl, useAddressFacts, useChainStatus,
++import {ADDRESS, CHAIN_ID, HASH, erc20Contracts, formatUnits, frameDestination, safeSourceUrl, useAddressFacts, useChainStatus,
 +  useChainTransaction, useChainTransactions, useRegistry, sharedMempoolUrl, useTokenBalances, type ChainTransaction, type Contract} from "../../chain/api";
 +import {formatBytes, formatQuantity, shortAddress, shortHash} from "../../logic/format";
 +import {Banner} from "../Banner";
@@ -474,7 +588,7 @@ index 0000000..5caef45
 +  const address=(value:unknown)=>typeof value==="string"&&ADDRESS.test(value)?<AddressLink address={value}/>:rawText(value);
 +  return <div className="space-y-7"><section><h2 className="text-2xl">On-chain transaction</h2><p className="mt-3 break-all"><CopyText value={hash}/></p><ChainScope/></section>
 +    {query.isPending?<p role="status">Looking up the transaction on the shared chain…</p>:query.isError?<ErrorNotice error={query.error} retry={query.refetch}/>:!data?<p className="text-ink-soft">This transaction was not found on the shared chain. It may still be pending or the index may be catching up.</p>:<>
-+      <Facts><Fact name="Status">{receipt?Number(receipt.status)===1?"Success":"Reverted":"Pending"}</Fact><Fact name="Type">{Number(tx?.type)===6?"Native frame transaction":"Ethereum transaction type "+Number(tx?.type??0)}</Fact><Fact name="Block">{data.block?Number(data.block.number).toLocaleString():"Pending"}</Fact><Fact name="Time">{data.block?new Date(Number(data.block.timestamp)*1000).toLocaleString():"Pending"}</Fact><Fact name="From">{address(tx?.from??tx?.sender)}</Fact><Fact name={native?"Frame targets":"To"}>{native?<div><p>{frames.length} frames</p><ol className="mt-2 space-y-1">{frames.map((frame,index)=><li key={index}>Frame {index}: {typeof frame==="object"&&frame!==null&&"target" in frame?frame.target===null?<>{address(tx?.sender??tx?.from)} <span className="text-ink-soft">(sender)</span></>:address(frame.target):"Target unavailable"}</li>)}</ol></div>:tx?.to?address(tx.to):"Contract creation"}</Fact>{receipt?.payer!==undefined&&<Fact name="Payer">{address(receipt.payer)}</Fact>}{typeof receipt?.contractAddress==="string"&&receipt.contractAddress&&<Fact name="Created contract">{address(receipt.contractAddress)}</Fact>}<Fact name={native?"Nonce sequence":"Nonce"}>{typeof nonce==="string"||typeof nonce==="number"?formatQuantity(String(nonce)):"Unavailable"}</Fact>{native&&Array.isArray(tx?.nonceKeys)&&<Fact name="Nonce keys"><span className="break-all font-mono text-sm">{tx.nonceKeys.map(rawText).join(", ")}</span></Fact>}<Fact name="Gas used">{receipt?formatQuantity(rawText(receipt.gasUsed)):"Pending"}</Fact>{feeValue(receipt)!==null&&<Fact name="Transaction fee">{feeValue(receipt)} test ETH</Fact>}</Facts>
++      <Facts><Fact name="Status">{receipt?Number(receipt.status)===1?"Success":"Reverted":"Pending"}</Fact><Fact name="Type">{Number(tx?.type)===6?"Native frame transaction":"Ethereum transaction type "+Number(tx?.type??0)}</Fact><Fact name="Block">{data.block?Number(data.block.number).toLocaleString():"Pending"}</Fact><Fact name="Time">{data.block?new Date(Number(data.block.timestamp)*1000).toLocaleString():"Pending"}</Fact><Fact name="From">{address(tx?.from??tx?.sender)}</Fact><Fact name={native?"Frame targets":"To"}>{native?<div><p>{frames.length} frames</p><ol className="mt-2 space-y-1">{frames.map((frame,index)=>{const destination=frameDestination(frame);return <li key={index}>Frame {index}: {destination===undefined?"Target unavailable":destination===null?<>{address(tx?.sender??tx?.from)} <span className="text-ink-soft">(sender)</span></>:address(destination)}</li>;})}</ol></div>:tx?.to?address(tx.to):"Contract creation"}</Fact>{receipt?.payer!==undefined&&<Fact name="Payer">{address(receipt.payer)}</Fact>}{typeof receipt?.contractAddress==="string"&&receipt.contractAddress&&<Fact name="Created contract">{address(receipt.contractAddress)}</Fact>}<Fact name={native?"Nonce sequence":"Nonce"}>{typeof nonce==="string"||typeof nonce==="number"?formatQuantity(String(nonce)):"Unavailable"}</Fact>{native&&Array.isArray(tx?.nonceKeys)&&<Fact name="Nonce keys"><span className="break-all font-mono text-sm">{tx.nonceKeys.map(rawText).join(", ")}</span></Fact>}<Fact name="Gas used">{receipt?formatQuantity(rawText(receipt.gasUsed)):"Pending"}</Fact>{feeValue(receipt)!==null&&<Fact name="Transaction fee">{feeValue(receipt)} test ETH</Fact>}</Facts>
 +      {Number(tx?.type)===6&&<Link to="/tx/$hash" params={{hash}} search={{node:sharedMempoolUrl()}} className={linkClass}>View native frames and mempool admission details</Link>}
 +      <details className="border-y border-line py-3"><summary className="cursor-pointer font-medium">Raw transaction and receipt</summary><pre className="mt-4 max-h-[32rem] overflow-auto bg-raised p-4 font-mono text-xs">{JSON.stringify(data,null,2)}</pre></details>
 +    </>}
