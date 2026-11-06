@@ -26,3 +26,6 @@ input.amt{min-height:44px}
   .amt-row{flex-wrap:wrap;row-gap:10px}
   .amt{font-size:max(24px,min(46px,calc(100cqi / (max(var(--chars,1),5) * .62))))}
 }
+
+/* The proof seal and status fit the window's height, so "Verified" and its block stay in view. */
+.p-stage .seal{max-width:min(540px,max(220px,calc(100svh - 540px)))}
