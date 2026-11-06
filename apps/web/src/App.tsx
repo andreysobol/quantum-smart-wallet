@@ -4,6 +4,7 @@ import { Backup } from "./screens/Backup.js";
 import { Engrave } from "./screens/Engrave.js";
 import { Exchange } from "./screens/Exchange.js";
 import { Genesis } from "./screens/Genesis.js";
+import { Names } from "./screens/Names.js";
 import { Portfolio } from "./screens/Portfolio.js";
 import { Proof } from "./screens/Proof.js";
 import { Restore } from "./screens/Restore.js";
@@ -16,6 +17,7 @@ const WALLET_SCREENS: Record<Exclude<Screen, "genesis" | "engrave" | "restore">,
   backup: () => <Backup />,
   portfolio: () => <Portfolio />,
   exchange: () => <Exchange />,
+  names: () => <Names />,
   proof: () => <Proof />,
 };
 

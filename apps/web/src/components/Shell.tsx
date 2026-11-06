@@ -60,6 +60,11 @@ export function Header() {
           <button className={cx("nb", screen === "exchange" && "on")} onClick={() => go("exchange")}>
             Exchange
           </button>
+          {config?.ens && (
+            <button className={cx("nb", screen === "names" && "on")} onClick={() => go("names")}>
+              Names
+            </button>
+          )}
         </nav>
       )}
       <div className="barR">
