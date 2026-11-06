@@ -179,12 +179,13 @@ describe("EngraveJob", () => {
     expect(t.created).toHaveLength(1);
   });
 
-  it("restore: rejects a backup whose recorded account disagrees with the factory", async () => {
+  it("restore: a backup whose (unauthenticated) recorded account disagrees with the factory opens the key's own account", async () => {
     const t = deps({ lookups: [{ predicted: ACCOUNT, registered: true }] });
     const meta = { chainId: 81411338, account: OTHER, factory: FACTORY, salt: accountSalt(PK) };
     const job = new EngraveJob(t.deps, "restore", { publicKey: PK, meta });
     await job.start();
-    expect(job.getSnapshot().phase).toBe("error");
+    expect(job.getSnapshot()).toMatchObject({ phase: "done", account: ACCOUNT });
+    expect(t.done[0]).toMatchObject({ account: ACCOUNT, salt: accountSalt(PK) });
   });
 
   it("a cancelled run never reports", async () => {

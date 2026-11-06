@@ -147,14 +147,8 @@ export class EngraveJob {
 
       this.step("derive");
       const factory = config.contracts.accountFactory;
-      const fromBackup =
-        this.meta && this.meta.chainId === config.chainId && isAddressEqual(this.meta.factory, factory) ? this.meta : null;
-      const salt = fromBackup?.salt ?? accountSalt(publicKey);
-      const found = await this.deps.lookupAccount(config.rpcUrl, factory, publicKey, salt);
+      const { salt, found } = await this.findAccount(config, publicKey);
       if (!live()) return;
-      if (fromBackup && !isAddressEqual(found.predicted, fromBackup.account)) {
-        throw new Error("The factory derives a different account for this key than the backup records. Nothing was changed.");
-      }
       const account = found.predicted;
       this.set({ account });
       await pace();
@@ -211,6 +205,30 @@ export class EngraveJob {
       if (error instanceof ApiError && error.code === "not_configured") return this.set({ phase: "unavailable" });
       this.set({ phase: "error", error: describeError(error) });
     }
+  }
+
+  /**
+   * The key's account. The server creates every account with the canonical salt (accountSalt), so that comes
+   * first. A backup's meta is not authenticated (it is outside the encryption's AAD), so its salt is only a
+   * fallback for a registered account the canonical salt misses, and only when the factory derives exactly
+   * the account the meta records. Otherwise the canonical account is used (and offered for creation if missing).
+   */
+  private async findAccount(config: PublicConfig, publicKey: Hex): Promise<{ salt: Hex; found: AccountLookup }> {
+    const factory = config.contracts.accountFactory;
+    const salt = accountSalt(publicKey);
+    const found = await this.deps.lookupAccount(config.rpcUrl, factory, publicKey, salt);
+    const hint = this.meta;
+    if (
+      found.registered ||
+      !hint ||
+      hint.chainId !== config.chainId ||
+      !isAddressEqual(hint.factory, factory) ||
+      hint.salt.toLowerCase() === salt.toLowerCase()
+    ) {
+      return { salt, found };
+    }
+    const recorded = await this.deps.lookupAccount(config.rpcUrl, factory, publicKey, hint.salt, hint.account);
+    return recorded.registered && isAddressEqual(recorded.predicted, hint.account) ? { salt: hint.salt, found: recorded } : { salt, found };
   }
 }
 
