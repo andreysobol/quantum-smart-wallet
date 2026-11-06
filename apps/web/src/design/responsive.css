@@ -29,3 +29,21 @@ input.amt{min-height:44px}
 
 /* The proof seal and status fit the window's height, so "Verified" and its block stay in view. */
 .p-stage .seal{max-width:min(540px,max(220px,calc(100svh - 540px)))}
+
+/* Single column: Exchange and Portfolio stack into one readable column with the primary action high up. */
+@media (max-width:1000px){
+  .x-grid{flex-direction:column;align-items:stretch;gap:24px;max-width:680px;margin-inline:auto}
+  .terms{gap:20px}
+  .slip,.terms{flex:none;width:100%;max-width:none}
+  .terms > .btn.wide,.terms > [role="alert"],.terms > [role="status"]{order:1}
+  .terms > .frames{order:2}
+  .v-grid{flex-direction:column;align-items:stretch}
+  .v-main{flex:none;max-width:none}
+  .v-acct{flex:none;margin:0 auto}
+  .v-acct .seal{max-width:min(320px,62vw)}
+}
+@media (max-width:1000px),(max-height:820px){
+  .v-main > *{order:3}
+  .v-main > .bal,.v-main > .empty{order:1}
+  .v-main > .row,.v-main > [role="status"],.v-main > [role="alert"]{order:2}
+}

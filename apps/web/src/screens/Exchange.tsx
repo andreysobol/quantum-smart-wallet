@@ -242,7 +242,7 @@ export function Exchange() {
               </dd>
             </div>
           </dl>
-          <div>
+          <div className="frames">
             <p className="lab">1 transaction · {labels.length} frames</p>
             <ol className="frl">
               {labels.map((label, i) => {
