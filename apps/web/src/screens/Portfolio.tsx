@@ -13,6 +13,7 @@ import { Serial } from "../components/Serial.js";
 import { TokenMark } from "../components/TokenMark.js";
 import { TxLink } from "../components/TxLink.js";
 import type { TokenSym } from "../design/helpers.js";
+import { useWalletName } from "../state/names.js";
 import { useWallet } from "../state/wallet.js";
 
 const ERROR_STYLE = { color: "var(--sealt)" } as const;
@@ -57,6 +58,7 @@ export function Portfolio() {
   const [faucetBusy, setFaucetBusy] = useState(false);
   const [faucetNote, setFaucetNote] = useState<{ text: string; error: boolean } | null>(null);
   const alive = useRef(true);
+  const name = useWalletName(config, wallet?.account);
 
   const refresh = useCallback(async () => {
     if (!config || !wallet) return;
@@ -210,6 +212,12 @@ export function Portfolio() {
         </div>
         <aside className="v-acct" aria-label="Account">
           <Seal seed={accountSeed(wallet.publicKey)} pk={wallet.publicKey} />
+          {name && (
+            <div className="ens-id">
+              <p className="ensn">{name}</p>
+              <p className="lab">Devnet ENSv2 · verified on chain</p>
+            </div>
+          )}
           <Serial address={wallet.account} />
           <CopyButton text={wallet.account} label="Copy address" />
           {!wallet.backedUp && (

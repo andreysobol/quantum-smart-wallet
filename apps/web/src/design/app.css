@@ -21,9 +21,13 @@ button.acct{appearance:none;background:none;border:0;cursor:pointer}
 .fm.s-done{color:var(--l1)}
 .fm.s-now{color:var(--l3);animation:pulse 1.2s ease-in-out infinite}
 .fm.s-err{color:var(--sealt)}
+.ens-id{display:flex;flex-direction:column;align-items:center;gap:4px;max-width:100%}
+.ens-id .lab{color:var(--l3);text-align:center}
 .v-acct .ensn{margin:0;font-style:italic;font-size:clamp(22px,2.4vw,30px);line-height:1.15;text-align:center;overflow-wrap:anywhere;color:var(--ink)}
 /* Names are letters, wider than digits in Bodoni: fit them with a wider glyph estimate and the namespace chip's width. */
 .amt.ens-in{font-size:max(24px,min(clamp(40px,5vw,76px),calc((100cqi - 150px) / (max(var(--chars,1),5) * .72))))}
 @container (max-width:300px){.amt.ens-in{font-size:max(22px,min(40px,calc(100cqi / (max(var(--chars,1),5) * .72))))}}
 /* One column: the registration action follows the name and price, before the terms and the frame plan. */
 @media (max-width:1000px){.terms.ens-terms > .btn.wide,.terms.ens-terms > [role="alert"]{order:-1}}
+/* A wallet name in the header chip: keep the chip one line and short on narrow screens. */
+.acct .mono{max-width:min(22ch,40vw);overflow:hidden;text-overflow:ellipsis}
