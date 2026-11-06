@@ -47,3 +47,21 @@ input.amt{min-height:44px}
   .v-main > .bal,.v-main > .empty{order:1}
   .v-main > .row,.v-main > [role="status"],.v-main > [role="alert"]{order:2}
 }
+
+/* Short windows (laptops with browser chrome, landscape phones): less vertical chrome, same hierarchy. */
+@media (max-height:820px){
+  .scr{padding-top:clamp(16px,3.2svh,40px)}
+  .head{margin-bottom:clamp(14px,3svh,32px);padding-bottom:12px}
+  .s-h{font-size:clamp(40px,min(5vw,8svh),76px)}
+  .plate{padding:clamp(16px,2.6svh,36px)}
+  .gen-h{font-size:clamp(46px,min(8.6vw,15svh),140px)}
+  .gen-copy{gap:clamp(14px,3svh,30px)}
+  .rail{margin-bottom:clamp(12px,2.4svh,44px)}
+  .ledger{margin-top:clamp(32px,6svh,88px)}
+  .half{padding:clamp(16px,2.6svh,36px)}
+  .qz{padding-bottom:clamp(12px,2svh,22px)}
+  .qz legend{font-size:clamp(22px,3.6svh,28px);margin-bottom:clamp(8px,1.6svh,14px)}
+}
+@media (max-height:500px){
+  .bar{padding-top:max(6px,env(safe-area-inset-top));padding-bottom:6px}
+}
