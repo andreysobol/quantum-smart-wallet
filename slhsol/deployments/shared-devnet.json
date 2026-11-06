@@ -51,5 +51,26 @@
   "demoExplorerUrl": "https://altmempool.bailo.london/explorer/tx/0x5372c2b13aa087361c62475f8b28f843012a9fb2ae4e4692878d80efcb28fa1e?node=https%3A%2F%2Faltmempool.bailo.london%2Fmempool",
   "demoAccount": "0x19b17f47284db0b254c62eb9ad6ce95538e3bc30",
   "mempoolBaseCommit": "2e22ff0a2898e69ea4bf5275bce1be8581a8582a",
-  "mempoolPolicyId": "bafkreibz7vvsk3go4p2kihdkqtd5ignv7hlcjhkvswrrv5gg2bghqerrke"
+  "mempoolPolicyId": "bafkreibz7vvsk3go4p2kihdkqtd5ignv7hlcjhkvswrrv5gg2bghqerrke",
+  "ens": {
+    "label": "Devnet ENSv2",
+    "namespace": "qsw.eth",
+    "note": "Devnet-only ENSv2 names on chain 81411338; they do not reserve public .eth names.",
+    "contractsV2Commit": "62778d80038e50cb23514eab1b7d66ceb8a41e1c",
+    "rootRegistry": "0xFE65cfc45b406F2D95d0de80a1eA89a7C6dE9c1C",
+    "ethRegistry": "0x7f2DC8E732adb8C55AE9787c8ed4D78Ea7F35639",
+    "qswRegistry": "0x5Bb30cD38cC07029729A1B614e5c834ce166c9aE",
+    "universalResolver": "0x6F36B098566f113021BB0eab239f0ba952c4b6CD",
+    "registrar": "0xc1784536C1dF5FBAAA705F4b51e542F14215E257",
+    "vaultFactory": "0xA9aBbA3d31F832B3258955FA8aD0DB1B49A96e24",
+    "resolverImplementation": "0xd77E82fF952C9b9E80771F42C4D0344795C6d187",
+    "verifiableFactory": "0x6c7C51937c2Af20bf7f59edaf471Bf0D8907930E",
+    "labelStore": "0x9a5F29C3d7782f4bFb1A7e399c5f3C7569df630d",
+    "contractNamer": "0x8B28fbFdAbC7a510c3912D3E4879e896C6601b91",
+    "paymentToken": "0x3636a1d9A30C46264822F1A47975707793770F42",
+    "pricePerYear": 5000000,
+    "minDuration": 31536000,
+    "beneficiary": "0xb7Ca4C821205f6721bacbd48052bEbF6A1f252c1",
+    "deploymentBlock": 6662
+  }
 }
