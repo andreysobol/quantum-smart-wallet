@@ -1,0 +1,16 @@
+/* Additions for the real wallet's states (errors, passphrase fields, file pickers), from design.css tokens. */
+.qs .err{margin:0;font-size:13px;line-height:1.6;color:var(--sealt);max-width:46em;overflow-wrap:anywhere}
+.fld{width:100%;min-height:54px;margin:0;background:var(--paper2);color:var(--ink);border:1px solid var(--rule2);border-radius:0;outline:1px solid var(--rule);outline-offset:-7px;padding:0 20px;font-size:15px;letter-spacing:.04em}
+.fld:focus-visible{outline:2px solid var(--l2);outline-offset:2px}
+.pp{position:relative;display:grid;gap:10px}
+.pp .fld{margin-bottom:8px}
+.hint{margin:0;font-size:12px;color:var(--ink2);min-height:1.5em}
+.pick,.drop{display:flex;align-items:center;justify-content:center;text-align:center;cursor:pointer;overflow-wrap:anywhere}
+.pick{padding:0 18px}
+.drop{border-style:dashed}
+.drop.over{border-color:var(--l1)}
+.pick:focus-within,.drop:focus-within{outline:2px solid var(--l2);outline-offset:3px}
+.vh{position:absolute!important;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+a.net{text-decoration:none}
+button.acct{appearance:none;background:none;border:0;cursor:pointer}
+.foot .err{margin-top:6px}
