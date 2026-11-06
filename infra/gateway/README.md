@@ -126,3 +126,10 @@ one larger block bounded at 5,000 transactions. There are at most four concurren
 internal reads, 16 MiB per internal RPC response, and no overlapping polls.
 Receipt/block consistency is checked before each atomic block commit. Public API
 queries use only SQLite and never initiate chain backfill.
+
+Participant schema version 1 also repairs cached mined transaction participants. Mined
+ethrex frames use `to`; submission DTOs may use `target`, and null resolves to
+the sender. Existing indexes replay stored transaction/receipt JSON in resumable
+batches of at most 32 rows / 8 MiB (one larger bounded row is allowed), making no
+chain calls during migration. Transaction rows and pagination cursors are retained,
+and the status remains indexing until migration and the next chain check complete.

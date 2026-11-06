@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { Database } from "bun:sqlite";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -76,7 +77,7 @@ describe("chain explorer", () => {
   test("indexes ordinary deployment, actual native sender/payer/targets, and exact original detail", async () => {
     const chain = new FakeChain();
     chain.block(1, H(101), [{ tx: { hash: H(11), to: null }, receipt: { contractAddress: A(20) } }]);
-    const native = await Bun.file(new URL("../../demo/evidence/shared-devnet/transaction.json", import.meta.url)).json();
+    const native = (await Bun.file(new URL("./fixtures/mined-frame-transaction.json", import.meta.url)).json()).result;
     const receipt = await Bun.file(new URL("../../demo/evidence/shared-devnet/receipt.json", import.meta.url)).json();
     chain.block(2, H(102), [{
       tx: { ...native, hash: receipt.transactionHash, type: "0x6", from: null, to: null },
@@ -88,7 +89,7 @@ describe("chain explorer", () => {
     expect(list(index, { address: A(20) }).transactions[0]).toMatchObject({ hash: H(11), to: null, contractAddress: A(20), status: "0x1" });
     const nativeRow = list(index).transactions[0];
     expect(nativeRow).toMatchObject({ hash: receipt.transactionHash, from: native.sender, payer: receipt.payer, type: "0x6", value: "0x0", gasUsed: receipt.gasUsed });
-    for (const address of [native.sender, receipt.payer, native.frames[2].target, receipt.logs[2].address]) {
+    for (const address of [native.sender, receipt.payer, native.frames[2].to, native.frames[native.frames.length - 1].to, receipt.logs[2].address]) {
       expect(list(index, { address }).transactions.map((tx) => tx.hash)).toContain(receipt.transactionHash);
     }
     const detail = index.handle("qsw_explorerTransaction", [receipt.transactionHash]) as any;
@@ -96,6 +97,71 @@ describe("chain explorer", () => {
     expect(detail.receipt.payer).toBe(receipt.payer);
     expect(detail.block).toEqual({ number: 2, hash: H(102), timestamp: 112 });
     expect(index.handle("qsw_explorerTransaction", [H(999)])).toBeNull();
+  });
+
+
+  test("mined frame.to takes precedence, null resolves to sender, and submission target remains supported", async () => {
+    const chain = new FakeChain();
+    chain.block(1, H(101), [{ tx: { hash: H(11), type: "0x6", sender: A(1), frames: [
+      { to: A(88), target: A(99), value: "0x0" },
+      { to: null, target: A(98), value: "0x0" },
+      { target: A(77), value: "0x0" },
+      { target: null, value: "0x0" },
+    ] } }]);
+    const index = explorer(chain);
+    await index.syncOnce();
+    for (const address of [A(88), A(77), A(1)]) expect(list(index, { address }).transactions).toHaveLength(1);
+    for (const address of [A(99), A(98)]) expect(list(index, { address }).transactions).toHaveLength(0);
+  });
+
+  test("repairs legacy participants from cached mined JSON in bounded resumable batches without chain replay", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "qsw-participant-migration-")); directories.push(directory);
+    const path = join(directory, "index.sqlite");
+    const native = (await Bun.file(new URL("./fixtures/mined-frame-transaction.json", import.meta.url)).json()).result;
+    const receipt = await Bun.file(new URL("../../demo/evidence/shared-devnet/receipt.json", import.meta.url)).json();
+    const router = native.frames[native.frames.length - 1].to;
+    const chain = new FakeChain();
+    chain.block(1, H(101), [
+      { tx: native, receipt: { ...receipt, blockHash: H(101), blockNumber: "0x1", transactionIndex: "0x0" } },
+      ...Array.from({ length: 64 }, (_, i) => ({
+        tx: { hash: H(200 + i), type: "0x6", frames: [{ to: A(200 + i), value: "0x0" }] },
+      })),
+    ]);
+    let index = explorer(chain, { path });
+    await index.syncOnce();
+    const cursor = list(index, { limit: 2 }).nextCursor;
+    await index.close(); explorers.splice(explorers.indexOf(index), 1);
+    const legacy = new Database(path);
+    legacy.run("DELETE FROM participants; PRAGMA user_version = 0;");
+    legacy.close(true);
+
+    let chainReads = 0;
+    const offlineRpc: ChainRpc = async () => { chainReads++; throw new Error("Migration must use cached JSON only"); };
+    index = explorer(chain, { path, rpc: offlineRpc });
+    await index.syncOnce();
+    expect(index.status()).toMatchObject({ transactionCount: 65, indexing: true, error: null });
+    expect(list(index, { address: router }).transactions.map((tx) => tx.hash)).toContain(native.hash);
+    expect(list(index, { address: A(263) }).transactions).toHaveLength(0);
+    expect(chainReads).toBe(0);
+    await index.close(); explorers.splice(explorers.indexOf(index), 1);
+
+    index = explorer(chain, { path, rpc: offlineRpc });
+    await index.syncOnce();
+    await index.syncOnce();
+    expect(chainReads).toBe(0);
+    expect(list(index, { address: A(263) }).transactions).toHaveLength(1);
+    expect(list(index, { limit: 2 }).nextCursor).toBe(cursor);
+    await index.close(); explorers.splice(explorers.indexOf(index), 1);
+    const migrated = new Database(path, { readonly: true });
+    expect(migrated.query("PRAGMA user_version").get()).toEqual({ user_version: 1 });
+    migrated.close(true);
+
+    chain.calls.length = 0;
+    index = explorer(chain, { path });
+    await index.syncOnce();
+    expect(index.status()).toMatchObject({ transactionCount: 65, indexedBlock: 1, latestBlock: 1, indexing: false, error: null });
+    expect(chain.calls).not.toContain("eth_getTransactionReceipt");
+    expect(list(index, { address: router }).transactions.map((tx) => tx.hash)).toContain(native.hash);
   });
 
   test("indexes only recognized event address topics including factory AccountCreated", async () => {

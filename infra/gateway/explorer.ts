@@ -19,6 +19,9 @@ const MAX_TRANSACTIONS_PER_POLL = 500;
 const MAX_TRANSACTIONS_PER_BLOCK = 5_000;
 const MAX_REORG_DEPTH = 64;
 const MAX_RPC_BYTES = 16 * 1024 * 1024;
+const PARTICIPANT_VERSION = 1;
+const MAX_MIGRATION_ROWS = 32;
+const MAX_MIGRATION_BYTES = 8 * 1024 * 1024;
 const TRANSFER = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 const ACCOUNT_CREATED = "0x934abbffb6906db60a85b076f1e41da9667dfa53c7724f4fe2333298d7b1db8c";
 const HEX_HASH = /^0x[0-9a-fA-F]{64}$/;
@@ -82,7 +85,11 @@ function prepareTransaction(transaction: JsonRecord, receipt: JsonRecord, block:
   const participants = new Set<string>();
   const add = (candidate: unknown) => { const normalized = address(candidate); if (normalized) participants.add(normalized); };
   for (const candidate of [row.from, row.to, row.contractAddress, row.payer]) add(candidate);
-  for (const frame of frames) add(frame.target ?? transaction.sender ?? row.from);
+  for (const frame of frames) {
+    // Mined ethrex RPC uses to; the sidecar submission DTO uses target.
+    const destination = Object.hasOwn(frame, "to") ? frame.to : frame.target;
+    add(destination ?? transaction.sender ?? row.from);
+  }
   for (const value of logs(receipt)) {
     if (!isRecord(value)) continue;
     add(value.address);
@@ -146,6 +153,7 @@ export class ChainExplorer {
   private ready = false;
   private error: string | null = null;
   private latest: number | null = null;
+  private migratingParticipants = false;
 
   constructor(options: { rpc: ChainRpc; path?: string; pollIntervalMs?: number; maxBlocksPerPoll?: number }) {
     const path = options.path ?? ":memory:";
@@ -179,6 +187,59 @@ export class ChainExplorer {
       CREATE INDEX IF NOT EXISTS participants_transaction ON participants(transaction_id);
       CREATE INDEX IF NOT EXISTS transactions_block ON transactions(block_number);
     `);
+    const version = (this.db.query("PRAGMA user_version").get() as { user_version: number }).user_version;
+    if (version > PARTICIPANT_VERSION) {
+      this.db.close(true); throw new Error("Explorer index was created by a newer version");
+    }
+    if (version < PARTICIPANT_VERSION) {
+      const count = (this.db.query("SELECT COUNT(*) AS count FROM transactions").get() as { count: number }).count;
+      this.migratingParticipants = count > 0;
+      if (!this.migratingParticipants) this.db.run("PRAGMA user_version = 1");
+    }
+  }
+
+  private migrateParticipants() {
+    const cursor = Number(this.meta("participantMigrationCursor") ?? 0);
+    if (!Number.isSafeInteger(cursor) || cursor < 0) throw new Error("Invalid participant migration cursor");
+    const candidates = this.db.query(`SELECT id, length(CAST(transaction_json AS BLOB)) +
+      length(CAST(receipt_json AS BLOB)) AS bytes FROM transactions WHERE id>? ORDER BY id LIMIT ?`)
+      .all(cursor, MAX_MIGRATION_ROWS + 1) as Array<{ id: number; bytes: number }>;
+    const updates: Array<{ id: number; participants: Set<string> }> = [];
+    let bytes = 0;
+    for (const candidate of candidates.slice(0, MAX_MIGRATION_ROWS)) {
+      if (candidate.bytes > MAX_RPC_BYTES * 2) throw new Error("Cached transaction exceeds migration limit");
+      if (updates.length > 0 && bytes + candidate.bytes > MAX_MIGRATION_BYTES) break;
+      const stored = this.db.query(`SELECT t.transaction_json,t.receipt_json,t.block_number,t.transaction_index,
+        b.hash,b.parent_hash,b.timestamp FROM transactions t JOIN blocks b ON b.number=t.block_number WHERE t.id=?`)
+        .get(candidate.id) as {
+          transaction_json: string; receipt_json: string; block_number: number; transaction_index: number;
+          hash: string; parent_hash: string; timestamp: number;
+        };
+      const transaction: unknown = JSON.parse(stored.transaction_json);
+      const receipt: unknown = JSON.parse(stored.receipt_json);
+      if (!isRecord(transaction) || !isRecord(receipt)) throw new Error("Invalid cached transaction");
+      const prepared = prepareTransaction(transaction, receipt, {
+        number: stored.block_number, hash: stored.hash, parentHash: stored.parent_hash, timestamp: stored.timestamp,
+      }, stored.transaction_index);
+      updates.push({ id: candidate.id, participants: prepared.participants });
+      bytes += candidate.bytes;
+    }
+    const complete = updates.length === candidates.length;
+    this.db.transaction(() => {
+      const remove = this.db.query("DELETE FROM participants WHERE transaction_id=?");
+      const insert = this.db.query("INSERT OR IGNORE INTO participants(address,transaction_id) VALUES(?,?)");
+      for (const update of updates) {
+        remove.run(update.id);
+        for (const address of update.participants) insert.run(address, update.id);
+      }
+      if (complete) {
+        this.db.query("DELETE FROM metadata WHERE key='participantMigrationCursor'").run();
+        this.db.run("PRAGMA user_version = 1");
+      } else {
+        this.setMeta("participantMigrationCursor", String(updates[updates.length - 1].id));
+      }
+    })();
+    this.migratingParticipants = !complete;
   }
 
   private meta(key: string): string | null {
@@ -200,7 +261,7 @@ export class ChainExplorer {
       chainId: this.meta("chainId"), genesisHash: this.meta("genesisHash"),
       indexedBlock: indexed, latestBlock: this.latest,
       transactionCount: (this.db.query("SELECT COUNT(*) AS count FROM transactions").get() as { count: number }).count,
-      indexing: !this.ready || this.pending !== undefined || this.error !== null ||
+      indexing: !this.ready || this.pending !== undefined || this.migratingParticipants || this.error !== null ||
         indexed === null || this.latest === null || indexed < this.latest,
       error: this.error, lastUpdated: this.meta("lastUpdated") === null ? null : Number(this.meta("lastUpdated")),
     };
@@ -261,6 +322,7 @@ export class ChainExplorer {
   }
 
   private async synchronize() {
+    if (this.migratingParticipants) { this.migrateParticipants(); return; }
     const initial = await Promise.allSettled([
       this.rpc("eth_chainId", []),
       this.rpc("eth_getBlockByNumber", ["0x0", false]),
