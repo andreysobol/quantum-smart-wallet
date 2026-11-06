@@ -29,6 +29,36 @@ export interface DeploymentContracts {
   stakingRegistry: Address;
 }
 
+/**
+ * Devnet ENSv2 namespace (manifest `ens` section, verified on-chain by the server). Names are ERC-1155
+ * tokens held by each account's ENSVault (the token owner); the QuantumAccount controls the vault.
+ * Devnet only: these names do not reserve public .eth names.
+ */
+export interface EnsDeployment {
+  /** Always shown with the feature: "Devnet ENSv2". */
+  label: string;
+  /** Parent name, e.g. "qsw.eth". */
+  namespace: string;
+  rootRegistry: Address;
+  ethRegistry: Address;
+  /** The namespace's PermissionedRegistry (subname tokens). */
+  qswRegistry: Address;
+  universalResolver: Address;
+  registrar: Address;
+  vaultFactory: Address;
+  resolverImplementation: Address;
+  verifiableFactory: Address;
+  /** dUSDC. */
+  paymentToken: Address;
+  /** Raw payment-token units per 365 days, decimal string. */
+  pricePerYear: string;
+  minDuration: number;
+  /** Longest registration the sponsor accepts, in whole years. */
+  maxYears: number;
+  /** First block of the namespace deployment (log queries start here). */
+  deploymentBlock: number;
+}
+
 /** GET /api/config: everything the browser needs; no secrets. */
 export interface PublicConfig {
   chainId: number;
@@ -123,9 +153,14 @@ export interface WireFrameTx {
   recentRootReferences: Hex[];
 }
 
+/** Which sponsored template a transaction claims to be. */
+export type SponsorKind = "swap" | "ens-register";
+
 /** POST /api/sponsor: the PQ-signed transaction; the server validates and co-signs. */
 export interface SponsorRequest {
   tx: WireFrameTx;
+  /** Defaults to "swap". */
+  kind?: SponsorKind;
 }
 export interface SponsorResponse {
   sponsor: Address;
