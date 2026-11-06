@@ -11,7 +11,7 @@ const browser = existsSync(chromium.executablePath()) ? {} : { channel: "chrome"
 // App specs (any e2e/*.spec.ts except signer.spec.ts) drive the Vite dev server with the /api dev plugin;
 // start it only when such specs exist.
 const hasAppSpecs = readdirSync(new URL("./e2e", import.meta.url)).some(
-  (name) => name.endsWith(".spec.ts") && name !== "signer.spec.ts",
+  (name) => name.endsWith(".spec.ts") && name !== "signer.spec.ts" && name !== "live.spec.ts",
 );
 // QSW_E2E_PREVIEW=1 runs them against the production build instead (vite preview sends vercel.json's headers).
 const appServer = process.env.QSW_E2E_PREVIEW
@@ -34,7 +34,8 @@ export default defineConfig({
     },
     {
       name: "app",
-      testIgnore: /signer\.spec\.ts$/,
+      // live.spec.ts spends devnet funds: it runs only through playwright.live.config.ts.
+      testIgnore: [/signer\.spec\.ts$/, /live\.spec\.ts$/],
       use: { ...devices["Desktop Chrome"], ...browser, baseURL: APP_URL },
     },
   ],
