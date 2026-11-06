@@ -1,0 +1,252 @@
+{
+ "hash": "0x5372c2b13aa087361c62475f8b28f843012a9fb2ae4e4692878d80efcb28fa1e",
+ "entry": {
+  "txHash": "0x5372c2b13aa087361c62475f8b28f843012a9fb2ae4e4692878d80efcb28fa1e",
+  "sender": "0x19b17f47284DB0B254c62eb9ad6cE95538e3Bc30",
+  "payer": "0xb7Ca4C821205f6721bacbd48052bEbF6A1f252c1",
+  "nonce": "0x6",
+  "nonceKeys": [
+   "0x0"
+  ],
+  "status": "OnChain",
+  "frames": 5,
+  "maxFeePerGas": "0x77359400",
+  "submittedTime": 1793936176175,
+  "lastUpdatedTime": 1793936188025,
+  "source": "rpc",
+  "transaction": "0x5372c2b13aa087361c62475f8b28f843012a9fb2ae4e4692878d80efcb28fa1e"
+ },
+ "admission": {
+  "id": 1,
+  "txHash": "0x5372c2b13aa087361c62475f8b28f843012a9fb2ae4e4692878d80efcb28fa1e",
+  "sender": "0x19b17f47284db0b254c62eb9ad6ce95538e3bc30",
+  "nonce": "0x6",
+  "nonceKeys": [
+   "0x0"
+  ],
+  "at": 1793936176052,
+  "source": "rpc",
+  "outcome": "included",
+  "checks": [
+   {
+    "rule": "gas-limit",
+    "verdict": "pass"
+   },
+   {
+    "rule": "recent-root",
+    "verdict": "pass"
+   },
+   {
+    "rule": "prefix",
+    "verdict": "pass"
+   },
+   {
+    "rule": "structure",
+    "verdict": "pass"
+   },
+   {
+    "rule": "signature",
+    "verdict": "pass"
+   },
+   {
+    "rule": "simulation",
+    "verdict": "pass"
+   },
+   {
+    "rule": "trace-alignment",
+    "verdict": "pass"
+   },
+   {
+    "rule": "OP-061",
+    "verdict": "pass"
+   },
+   {
+    "rule": "execution",
+    "verdict": "pass"
+   },
+   {
+    "rule": "trace-alignment",
+    "frameIndex": 0,
+    "entity": "sender",
+    "verdict": "pass"
+   },
+   {
+    "rule": "out-of-gas",
+    "frameIndex": 0,
+    "entity": "sender",
+    "verdict": "pass"
+   },
+   {
+    "rule": "OP-011",
+    "frameIndex": 0,
+    "entity": "sender",
+    "verdict": "pass"
+   },
+   {
+    "rule": "create",
+    "frameIndex": 0,
+    "entity": "sender",
+    "verdict": "pass"
+   },
+   {
+    "rule": "storage",
+    "frameIndex": 0,
+    "entity": "sender",
+    "verdict": "pass"
+   },
+   {
+    "rule": "COD-010",
+    "frameIndex": 0,
+    "entity": "sender",
+    "verdict": "pass"
+   },
+   {
+    "rule": "entrypoint-access",
+    "frameIndex": 0,
+    "entity": "sender",
+    "verdict": "pass"
+   },
+   {
+    "rule": "trace-alignment",
+    "frameIndex": 1,
+    "entity": "payer",
+    "verdict": "pass"
+   },
+   {
+    "rule": "out-of-gas",
+    "frameIndex": 1,
+    "entity": "payer",
+    "verdict": "pass"
+   },
+   {
+    "rule": "OP-011",
+    "frameIndex": 1,
+    "entity": "payer",
+    "verdict": "pass"
+   },
+   {
+    "rule": "create",
+    "frameIndex": 1,
+    "entity": "payer",
+    "verdict": "pass"
+   },
+   {
+    "rule": "storage",
+    "frameIndex": 1,
+    "entity": "payer",
+    "verdict": "pass"
+   },
+   {
+    "rule": "COD-010",
+    "frameIndex": 1,
+    "entity": "payer",
+    "verdict": "pass"
+   },
+   {
+    "rule": "entrypoint-access",
+    "frameIndex": 1,
+    "entity": "payer",
+    "verdict": "pass"
+   },
+   {
+    "rule": "mempool",
+    "verdict": "pass"
+   }
+  ],
+  "frames": [
+   {
+    "mode": 1,
+    "flags": 2,
+    "target": "0x19b17f47284db0b254c62eb9ad6ce95538e3bc30",
+    "limits": {
+     "execution": "0x249f00",
+     "state": "0x0"
+    },
+    "value": "0x0",
+    "data": "0x634b01e8"
+   },
+   {
+    "mode": 1,
+    "flags": 1,
+    "target": "0xb7ca4c821205f6721bacbd48052bebf6a1f252c1",
+    "limits": {
+     "execution": "0x7530",
+     "state": "0x0"
+    },
+    "value": "0x0",
+    "data": "0x"
+   },
+   {
+    "mode": 2,
+    "flags": 4,
+    "target": "0x3636a1d9a30c46264822f1a47975707793770f42",
+    "limits": {
+     "execution": "0x13880",
+     "state": "0x186a0"
+    },
+    "value": "0x0",
+    "data": "0x095ea7b3000000000000000000000000389e7536ab422df13370e7d713cabd22bde9d6c900000000000000000000000000000000000000000000000000000000000f4240"
+   },
+   {
+    "mode": 2,
+    "flags": 4,
+    "target": "0x389e7536ab422df13370e7d713cabd22bde9d6c9",
+    "limits": {
+     "execution": "0x13880",
+     "state": "0x186a0"
+    },
+    "value": "0x0",
+    "data": "0x87517c450000000000000000000000003636a1d9a30c46264822f1a47975707793770f42000000000000000000000000bf8badae6056b59bec3d993936ab8627aa2a4d3400000000000000000000000000000000000000000000000000000000000f4240000000000000000000000000000000000000000000000000000000006aed522f"
+   },
+   {
+    "mode": 2,
+    "flags": 0,
+    "target": "0xbf8badae6056b59bec3d993936ab8627aa2a4d34",
+    "limits": {
+     "execution": "0xf4240",
+     "state": "0x30d40"
+    },
+    "value": "0x0",
+    "data": "0x3593564c000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000006aed522f00000000000000000000000000000000000000000000000000000000000000011000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000360000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000003060c0f00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000260000000000000000000000000000000000000000000000000000000000000018000000000000000000000000000000000000000000000000000000000000000200000000000000000000000003636a1d9a30c46264822f1a47975707793770f42000000000000000000000000edae4f23add2aabbfcad8972801e6fa90ad4bbf20000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c000000000000000000000000c83ee6088f08ca9307c10a54a32f7cfb748f4080000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000f424000000000000000000000000000000000000000000000000000019945ca26200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000000000000000000000003636a1d9a30c46264822f1a47975707793770f4200000000000000000000000000000000000000000000000000000000000f42400000000000000000000000000000000000000000000000000000000000000040000000000000000000000000edae4f23add2aabbfcad8972801e6fa90ad4bbf200000000000000000000000000000000000000000000000000019945ca262000"
+   }
+  ],
+  "frameStatuses": [
+   "success",
+   "success",
+   "success",
+   "success",
+   "success"
+  ],
+  "includer": "0x000000000000000000000000000000000000dead"
+ },
+ "events": [
+  {
+   "seq": 1,
+   "txHash": "0x5372c2b13aa087361c62475f8b28f843012a9fb2ae4e4692878d80efcb28fa1e",
+   "at": 1793936176185,
+   "kind": "admitted",
+   "status": "New"
+  },
+  {
+   "seq": 2,
+   "txHash": "0x5372c2b13aa087361c62475f8b28f843012a9fb2ae4e4692878d80efcb28fa1e",
+   "at": 1793936177032,
+   "kind": "statusChanged",
+   "status": "Submitted"
+  },
+  {
+   "seq": 3,
+   "txHash": "0x5372c2b13aa087361c62475f8b28f843012a9fb2ae4e4692878d80efcb28fa1e",
+   "at": 1793936180029,
+   "kind": "statusChanged",
+   "status": "Submitted"
+  },
+  {
+   "seq": 4,
+   "txHash": "0x5372c2b13aa087361c62475f8b28f843012a9fb2ae4e4692878d80efcb28fa1e",
+   "at": 1793936188026,
+   "kind": "included",
+   "status": "OnChain"
+  }
+ ]
+}
