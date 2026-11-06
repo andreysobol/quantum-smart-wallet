@@ -1,0 +1,20 @@
+/*
+ * Adaptive layer over the verbatim design (design.css): breakpoints come from where this content reflows,
+ * plus short windows, touch, safe areas, the on-screen keyboard and long amounts.
+ *   1000px  two-column Exchange/Portfolio stops fitting side by side
+ *    720px  header row cannot hold brand, tabs, network and account: tabs move to a bottom bar
+ *    380px  wordmark yields to the account chip
+ *   820px / 500px tall  short laptop windows and landscape phones compress vertical chrome
+ */
+
+/* Browser chrome and notches: dynamic viewport height, safe-area padding (viewport-fit=cover). */
+.qs{min-height:100vh;min-height:100dvh}
+.bar{padding-top:max(14px,env(safe-area-inset-top));padding-left:max(clamp(16px,3.4vw,48px),env(safe-area-inset-left));padding-right:max(clamp(16px,3.4vw,48px),env(safe-area-inset-right))}
+.scr{padding-left:max(clamp(16px,3.4vw,48px),env(safe-area-inset-left));padding-right:max(clamp(16px,3.4vw,48px),env(safe-area-inset-right))}
+.foot{padding-left:max(clamp(16px,3.4vw,48px),env(safe-area-inset-left));padding-right:max(clamp(16px,3.4vw,48px),env(safe-area-inset-right));padding-bottom:max(24px,calc(env(safe-area-inset-bottom) + 12px))}
+
+/* Touch: every text button keeps a 44px target; hover-only motion must not stick after a tap. */
+.link,.brand{min-width:44px}
+input.amt{min-height:44px}
+.acct .mono{white-space:nowrap}
+@media (hover:none){.flip:hover{transform:translate(-50%,-50%)}}
