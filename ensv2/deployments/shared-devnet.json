@@ -1,0 +1,100 @@
+{
+  "status": "ready",
+  "label": "Devnet ENSv2 (not public .eth names)",
+  "chainId": 81411338,
+  "genesisHash": "0xd3f5fc1f656bd0d05f18cca9cad3a2cc7ef373042c1890862c379a61e3e89f50",
+  "operator": "0xb7Ca4C821205f6721bacbd48052bEbF6A1f252c1",
+  "contractsV2": {
+    "repository": "https://github.com/ensdomains/contracts-v2",
+    "tag": "v2-mainnet-deployment-1",
+    "commit": "62778d80038e50cb23514eab1b7d66ceb8a41e1c"
+  },
+  "contracts": {
+    "ContractNamerImplementation": "0x1db412F8Ae3BBFcc32e813251FE8a0B8F09b0B1b",
+    "ContractNamer": "0x8B28fbFdAbC7a510c3912D3E4879e896C6601b91",
+    "VerifiableFactory": "0x6c7C51937c2Af20bf7f59edaf471Bf0D8907930E",
+    "LabelStore": "0x9a5F29C3d7782f4bFb1A7e399c5f3C7569df630d",
+    "RootRegistry": "0xFE65cfc45b406F2D95d0de80a1eA89a7C6dE9c1C",
+    "ETHRegistry": "0x7f2DC8E732adb8C55AE9787c8ed4D78Ea7F35639",
+    "BatchGatewayProvider": "0xF8AF1d5BD6Df31ABf3Be64a295059f93D0678a1D",
+    "UniversalResolverV2": "0x6F36B098566f113021BB0eab239f0ba952c4b6CD",
+    "QswRegistry": "0x5Bb30cD38cC07029729A1B614e5c834ce166c9aE",
+    "PermissionedResolverImplementation": "0xd77E82fF952C9b9E80771F42C4D0344795C6d187",
+    "SimpleSubnameRegistrar": "0xc1784536C1dF5FBAAA705F4b51e542F14215E257",
+    "ENSVaultFactory": "0xA9aBbA3d31F832B3258955FA8aD0DB1B49A96e24"
+  },
+  "transactions": {
+    "ContractNamerImplementation": {
+      "hash": "0x82fa3783d10691f2cc3a8f3077d1b63cb688268477c83662bc013bc98b85224a",
+      "block": 6662
+    },
+    "ContractNamer": {
+      "hash": "0xe975f9796d31a15e7be9a690f9cdd9a758df535235a3f679ccd360dde80a9ff5",
+      "block": 6666
+    },
+    "VerifiableFactory": {
+      "hash": "0x6d0f63cdb7452a0b031342a6d5a6b2dd7702c30763a0f794706b1c8d26da8c71",
+      "block": 6668
+    },
+    "LabelStore": {
+      "hash": "0x1719d50b5de9ef3c6d5d1634db8ef22f03e88a0cfc5e896da3460f8dd4fda495",
+      "block": 6669
+    },
+    "RootRegistry": {
+      "hash": "0x2470fba0f72d8e463ef1da818b89f13cb9a611660c4316588b84823f9ae21dcd",
+      "block": 6671
+    },
+    "ETHRegistry": {
+      "hash": "0x127b39a3519a72919374c0e59d40ee8edd6c79cde98434ff7fbdc3e0ad1bf816",
+      "block": 6674
+    },
+    "registerEth": {
+      "hash": "0xaf901643eba5aeffccce996b9e5abb4f199b08bcb767dd5848ac4ccf217faa4c",
+      "block": 6676
+    },
+    "setEthParent": {
+      "hash": "0x835b5a5532364f18cefee9713c98629049adaeb60ca402892c4328f7535fbcc3",
+      "block": 6678
+    },
+    "grantEthRegistrar": {
+      "hash": "0xdbb2a60519f521b95f0615b97c09e7d97ea41e3f3083f0b744d6199606f3cd77",
+      "block": 6680
+    },
+    "BatchGatewayProvider": {
+      "hash": "0x58d24408914c46031a0a604d66d316637b703f421cb435e1d0761b3be70d21a3",
+      "block": 6682
+    },
+    "UniversalResolverV2": {
+      "hash": "0x55cb7d2fb02ff82083e264e28c7f7a52e3acb49bbfbec20dcf75ab8ffd44eaca",
+      "block": 6683
+    },
+    "QswRegistry": {
+      "hash": "0xbd1f0f91b20c46cb521fc0c558a0ece6ceb2bd70e46078939d8528475a2e8464",
+      "block": 6684
+    },
+    "registerQsw": {
+      "hash": "0x0dfafb9e5e2f40769483c5d93314be7b19a2ceccfedd75c04b63030255c706ac",
+      "block": 6685
+    },
+    "setQswParent": {
+      "hash": "0x883cd03509a878bbdb90bd4a2f227019d5f321a53930f0959493b2d73c7d30c8",
+      "block": 6686
+    },
+    "PermissionedResolverImplementation": {
+      "hash": "0x909f5ba96f8249121931e4d24c16bb3164ab33add7b91d87f4ed6b6558d54f8b",
+      "block": 6687
+    },
+    "SimpleSubnameRegistrar": {
+      "hash": "0x682ef930c9eb4792ddb3601670d23fcbac4e24f342aa350a01b2e088c7685e62",
+      "block": 6688
+    },
+    "grantRegistrar": {
+      "hash": "0x7efb0428411abd32a4f3f21d227a747dc48f6833b5b10b9f031915757404cf0b",
+      "block": 6689
+    },
+    "ENSVaultFactory": {
+      "hash": "0x56e8d5c87876201042239c0596e290f84bb04498e98db58beb91fd1f1f3cb6df",
+      "block": 6690
+    }
+  }
+}
