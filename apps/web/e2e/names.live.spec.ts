@@ -96,7 +96,10 @@ test("register a devnet name to the account's vault and resolve it to the accoun
   const body = (await response.json()) as { txHash?: Hex; error?: { message: string } };
   expect(response.status(), body.error?.message).toBe(200);
   const hash = body.txHash as Hex;
-  await expect(page.getByText(`${name} is held by your vault and resolves to your account`)).toBeVisible({ timeout: 240_000 });
+  // Like a swap, the registration runs on the Proof screen.
+  await expect(page.getByRole("region", { name: "Proof" })).toBeVisible();
+  await expect(page.locator(".p-title")).toHaveText("Verified", { timeout: 240_000 });
+  await expect(page.locator(".pfl .pf .pf-s")).toHaveText(["Approved", "Approved", "Done", "Done", "Done", "Done"]);
 
   // 3. On chain: receipt, payer, PQ validation, admission.
   const receipt = await receiptOf(config, hash);
@@ -153,16 +156,20 @@ test("register a devnet name to the account's vault and resolve it to the accoun
   expect(usedResolver.toLowerCase()).toBe(resolver.toLowerCase());
   expect(decodeFunctionResult({ abi: ADDR_ABI, functionName: "addr", data: result }).toLowerCase()).toBe(account.account.toLowerCase());
 
-  // 7. The wallet shows the verified name: receipt, list, header and portfolio.
-  await expect(page.locator(".rc > div").filter({ has: page.locator("dt", { hasText: "Token owner" }) }).locator("dd")).toContainText(`Vault ${vault.slice(0, 6)}`);
-  await expect(page.locator(".lg-row").filter({ hasText: name })).toContainText("Verified · held by your vault");
+  // 7. The wallet shows the verified name: proof receipt, list, header and portfolio.
+  const row = (label: string) => page.locator(".rc > div").filter({ has: page.locator("dt", { hasText: new RegExp(`^${label}$`) }) }).locator("dd");
+  await expect(row("Name")).toHaveText(name);
+  await expect(row("Token owner")).toContainText(`Vault ${vault.slice(0, 6)}`);
+  await expect(row("Controller")).toContainText(`Account ${account.account.slice(0, 6)}`);
+  await expect(row("Paid")).toContainText("5 dUSDC");
+  await page.getByRole("button", { name: "Back to names" }).click();
+  await expect(page.locator(".lg-row").filter({ hasText: name })).toContainText("Verified · held by your vault", { timeout: 60_000 });
   await expect(page.locator(".acct .mono")).toHaveText(name, { timeout: 90_000 });
   await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: "Portfolio" }).click();
   await expect(page.locator(".v-acct .ensn")).toHaveText(name);
 
   // 8. Taken names are refused by the UI and by the sponsor.
   await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: "Names" }).click();
-  await page.getByRole("button", { name: "Register another name" }).click();
   await page.getByLabel("Name", { exact: true }).fill(label);
   await expect(page.locator("#ens-status")).toHaveText(`${name} is taken`, { timeout: 30_000 });
   await expect(page.getByRole("button", { name: "Name taken" })).toBeDisabled();
