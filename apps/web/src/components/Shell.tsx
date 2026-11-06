@@ -2,7 +2,7 @@ import { CHAIN_ID } from "../../shared/constants.js";
 import { explorerAddressUrl, explorerBase } from "../chain/explorer.js";
 import { fibers, short } from "../design/helpers.js";
 import { useWallet } from "../state/wallet.js";
-import { useCopy } from "./CopyButton.js";
+import { copyLabel, ManualCopy, useCopy } from "./CopyButton.js";
 import { accountSeed, cx, Seal } from "./Seal.js";
 
 /** UV security fibres hugging the page edges. */
@@ -26,7 +26,7 @@ export function PaperFx() {
 
 export function Header() {
   const { wallet, config, screen, go, onboarded } = useWallet();
-  const [copied, copy] = useCopy();
+  const [copyState, copy] = useCopy();
   const account = onboarded ? wallet : null;
 
   const goHome = () => {
@@ -81,12 +81,19 @@ export function Header() {
             className="acct"
             title={account.account}
             onClick={() => copy(account.account)}
-            aria-label={copied ? "Address copied" : `Copy address ${account.account}`}
+            aria-label={
+              copyState === "copied"
+                ? "Address copied"
+                : copyState === "failed"
+                  ? `Copy failed. Address ${account.account}`
+                  : `Copy address ${account.account}`
+            }
           >
             <Seal seed={accountSeed(account.publicKey)} lite size={30} />
-            <span className="mono">{copied ? "Copied" : short(account.account)}</span>
+            <span className="mono">{copyState === "idle" ? short(account.account) : copyLabel(copyState, "")}</span>
           </button>
         )}
+        {account && copyState === "failed" && <ManualCopy text={account.account} />}
       </div>
     </header>
   );
