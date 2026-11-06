@@ -65,3 +65,27 @@ input.amt{min-height:44px}
 @media (max-height:500px){
   .bar{padding-top:max(6px,env(safe-area-inset-top));padding-bottom:6px}
 }
+
+/* Phones and narrow windows: one-row header, tabs in a bottom bar within thumb reach. */
+@media (max-width:720px){
+  .bar{flex-wrap:nowrap;gap:10px;padding-top:max(10px,env(safe-area-inset-top));padding-bottom:10px}
+  .brand{min-width:44px;flex:0 1 auto}
+  .barR{flex-wrap:nowrap;gap:6px;min-width:0;margin-left:auto}
+  .net{padding:0 8px;min-width:44px;justify-content:center}
+  .net .net-t{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .nav{position:fixed;left:0;right:0;bottom:0;z-index:20;display:grid;grid-template-columns:1fr 1fr;gap:0;background:var(--paper);border-top:1px solid var(--rule2);padding:0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+  .nb{min-height:56px;padding:0}
+  .nb.on::after{top:0;bottom:auto;left:28%;right:28%}
+  .qs:has(.nav){padding-bottom:calc(57px + env(safe-area-inset-bottom))}
+  html:has(.nav){scroll-padding-bottom:calc(72px + env(safe-area-inset-bottom))}
+  .ph{padding:10px 8px}
+  .p-stage .seal{max-width:min(78vw,max(200px,calc(100svh - 430px)))}
+}
+/* Touch screens: the on-screen keyboard takes the bottom edge, so the tab bar steps aside while typing. */
+@media (max-width:720px) and (pointer:coarse){
+  .qs:has(input:focus,textarea:focus) .nav{display:none}
+  .qs:has(input:focus,textarea:focus){padding-bottom:0}
+}
+@media (max-width:380px){
+  .wmk{display:none}
+}

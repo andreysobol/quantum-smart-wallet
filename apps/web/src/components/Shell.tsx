@@ -38,7 +38,8 @@ export function Header() {
   const explorer = config ? (account ? explorerAddressUrl(config, account.account) : explorerBase(config)) : null;
   const net = (
     <>
-      <span className="dot"></span>Devnet
+      <span className="dot"></span>
+      <span className="net-t">Devnet</span>
     </>
   );
 
