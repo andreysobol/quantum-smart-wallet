@@ -130,7 +130,7 @@ test("create a factory account, verify its backup, mint test dUSDC and swap both
   await page.getByLabel("Backup passphrase").fill(PASS);
   await page.getByRole("button", { name: "Seal backup" }).click();
   await expect(page.locator(".stamp .st1")).toHaveText("Sealed");
-  await expect(page.getByRole("heading", { name: "Portfolio", exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator(".v-grid")).toBeVisible({ timeout: 30_000 });
 
   // 3. Faucet: operator mints test dUSDC to the registered account.
   const faucet = page.waitForResponse((r) => r.url().endsWith("/api/faucet"), { timeout: 120_000 });
@@ -146,7 +146,7 @@ test("create a factory account, verify its backup, mint test dUSDC and swap both
   // 4. Sponsored dUSDC -> WETH swap.
   const nav = page.getByRole("navigation", { name: "Sections" });
   await nav.getByRole("button", { name: "Exchange" }).click();
-  await expect(page.getByRole("heading", { name: "Exchange", exact: true })).toBeVisible();
+  await expect(page.locator(".x-grid")).toBeVisible();
   await page.getByLabel("You pay").fill("10");
   const buy = await swap(page);
   await expectSponsoredSuccess(config, account.account, buy);
@@ -160,7 +160,7 @@ test("create a factory account, verify its backup, mint test dUSDC and swap both
 
   // 5. Sponsored WETH -> dUSDC swap of everything received (first mined swap in this direction).
   await nav.getByRole("button", { name: "Exchange" }).click();
-  await expect(page.getByRole("heading", { name: "Exchange", exact: true })).toBeVisible();
+  await expect(page.locator(".x-grid")).toBeVisible();
   await page.getByRole("button", { name: "Swap direction" }).click();
   await page.getByRole("button", { name: "Max" }).click();
   const sell = await swap(page);

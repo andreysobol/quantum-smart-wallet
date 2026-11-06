@@ -239,7 +239,7 @@ test("create wallet: worker key and seal, operator-less error with retry, mocked
   await expect(page.locator(".stamp .st1")).toHaveText("Sealed");
   await expect(page.getByRole("status")).toHaveText("Backup verified and sealed.");
 
-  await expect(page.getByRole("heading", { name: "Portfolio", exact: true })).toBeVisible();
+  await expect(page.locator(".v-grid")).toBeVisible();
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("qsw.wallet.v1") ?? "null") as unknown);
   expect(stored).toMatchObject({ publicKey, backedUp: true, createTxHash: MOCK_CREATE_TX, salt: accountSalt(publicKey) });
   expect((stored as WalletRecord).account.toLowerCase()).toBe(account.toLowerCase());
@@ -266,7 +266,7 @@ test("create wallet: worker key and seal, operator-less error with retry, mocked
     await expect(fresh.locator(".seal.live.engr .l-pk textPath")).toContainText(`PK ${publicKey}`);
     expect(known.requests).toEqual([]);
     await fresh.getByRole("button", { name: "Continue" }).click();
-    await expect(fresh.getByRole("heading", { name: "Portfolio", exact: true })).toBeVisible();
+    await expect(fresh.locator(".v-grid")).toBeVisible();
     await expect(fresh.getByRole("button", { name: `Copy address ${account}` })).toBeVisible();
     const restored = await fresh.evaluate(() => JSON.parse(localStorage.getItem("qsw.wallet.v1") ?? "null") as unknown);
     expect(restored).toMatchObject({ publicKey, backedUp: true, createTxHash: null });
@@ -301,7 +301,7 @@ test("portfolio, exchange and proof replay show the demo account's real devnet d
   await page.reload();
 
   // Portfolio: balances equal an independent read of the chain.
-  await expect(page.getByRole("heading", { name: "Portfolio", exact: true })).toBeVisible();
+  await expect(page.locator(".v-grid")).toBeVisible();
   const [eth, usdc, weth] = await readBalances(config, DEMO);
   const rows = page.locator(".holdings .hrow");
   await expect(rows).toHaveCount(3);
@@ -327,7 +327,7 @@ test("portfolio, exchange and proof replay show the demo account's real devnet d
   // Exchange: a live quote from the pool, the five frames and the network fee (sponsor) row.
   const nav = page.getByRole("navigation", { name: "Sections" });
   await nav.getByRole("button", { name: "Exchange" }).click();
-  await expect(page.getByRole("heading", { name: "Exchange", exact: true })).toBeVisible();
+  await expect(page.locator(".x-grid")).toBeVisible();
   await page.getByLabel("You pay").fill("1");
   const quote = quoteExactIn(await loadPoolState(config.rpcUrl, config), "USDC_TO_WETH", 1_000_000n);
   await expect(page.locator(".recv .amt")).toHaveText(formatToken(quote.amountOut, "weth"));

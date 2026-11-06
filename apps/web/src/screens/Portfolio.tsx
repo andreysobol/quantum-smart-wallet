@@ -125,11 +125,7 @@ export function Portfolio() {
   };
 
   return (
-    <section className="scr" aria-labelledby="v-h">
-      {/* The header tab already names the page; keep the heading for screen readers only. */}
-      <h2 className="vh" id="v-h">
-        Portfolio
-      </h2>
+    <section className="scr">
       <div className="v-grid">
         <div className="v-main">
           {!balances && !error && <p className="lab">Reading balances…</p>}
