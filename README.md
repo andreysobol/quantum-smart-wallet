@@ -24,6 +24,27 @@ A native Ethereum wallet that replaces classical transaction authorization with 
 - [x] [Deployment and sponsored swap demo](demo/)
 - [x] [Cross-implementation validation: OpenSSL, rslh and slhts](eval/)
 
+### Try our wallet
+
+[Quantum Smart Wallet](https://quantum-smart-wallet.vercel.app/)
+
+```
+DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT
+DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT
+DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT
+DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT
+DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT
+DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT
+DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT
+DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT
+DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT
+DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT
+DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT
+DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT DEMO SCREENSHOT
+```
+
+[Quantum Smart Wallet](https://quantum-smart-wallet.vercel.app/)
+
 ## SLH-DSA-SHA2-128s
 
 [FIPS 205: Stateless Hash-Based Digital Signature Standard](https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.205.pdf)
@@ -41,6 +62,8 @@ EIP-8141 proposes native account abstraction through transactions composed of se
 [ERC-8421: Frame Transaction Alternative Mempools](https://ethereum-magicians.org/t/erc-8421-frame-transaction-alternative-mempools/29800)
 
 ERC-8421 proposes alternative mempool rules for EIP-8141 frame transactions. It defines a framework for transaction admission and propagation outside the default public mempool, with validation restrictions designed to resist denial-of-service attacks while accommodating more flexible smart-account validation policies.
+
+---
 
 ## slhsol — native quantum account
 
