@@ -83,7 +83,7 @@ test("register a devnet name to the account's vault and resolve it to the accoun
   const label = `qsw${Date.now().toString(36)}`;
   const name = `${label}.${ens.namespace}`;
   await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: "Names" }).click();
-  await expect(page.getByText("Devnet ENSv2 · chain 81411338", { exact: false })).toBeVisible();
+  await expect(page.getByLabel("Name", { exact: true })).toBeVisible();
   await page.getByLabel("Name", { exact: true }).fill(label.toUpperCase());
   await expect(page.locator("#ens-status")).toHaveText(`${name} is available (normalized)`, { timeout: 30_000 });
   const before = { account: await usdcOf(config, account.account), beneficiary: await usdcOf(config, OPERATOR) };

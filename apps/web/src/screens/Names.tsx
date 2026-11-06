@@ -153,7 +153,6 @@ export function Names() {
 
   return (
     <section className="scr">
-      <p className="lab ens-tag">Devnet ENSv2 · chain {config.chainId} · these names do not reserve public .eth names</p>
       <div className="x-grid">
         <div className="slip">
           <div className="half">

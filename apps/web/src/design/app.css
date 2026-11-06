@@ -14,8 +14,7 @@
 a.net{text-decoration:none}
 button.acct{appearance:none;background:none;border:0;cursor:pointer}
 .foot .err{margin-top:6px}
-/* Devnet ENSv2 names: year choice, progress states and the devnet notice, from design.css tokens. */
-.ens-tag{margin:0 0 clamp(18px,2.4vw,30px);color:var(--l3)}
+/* Devnet ENSv2 names: year choice and progress states, from design.css tokens. */
 .yrs{display:flex;flex-wrap:wrap;gap:4px}
 .yrs .tbtn{padding:0 10px}
 .fm.s-done{color:var(--l1)}
