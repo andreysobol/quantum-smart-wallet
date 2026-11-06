@@ -68,6 +68,15 @@ The app e2e (`e2e/app.spec.ts`) starts `vite` on port 4173 with the operator key
 onboarding (account creation is mocked in the browser), the backup check, restore, and the read-only Portfolio,
 Exchange and Proof screens for the demo account. It reads the public devnet but never sends a transaction.
 
+The live run is opt-in because it spends operator ETH (0.012 ETH stake per account plus sponsored gas). Through
+the real UI it creates a factory account, verifies a backup, mints test dUSDC and swaps dUSDC→WETH and
+WETH→dUSDC with sponsored gas, then checks receipts, payer, frame statuses, mempool admission and balances on chain:
+
+```bash
+QSW_LIVE=1 npx playwright test -c playwright.live.config.ts                      # local dev server + .env.local
+QSW_LIVE=1 QSW_LIVE_URL=https://quantum-smart-wallet.vercel.app npx playwright test -c playwright.live.config.ts
+```
+
 ## Deploying to Vercel
 
 1. Import the repository as a new project. On the **Build and Deployment** settings page, set:
@@ -78,7 +87,8 @@ Exchange and Proof screens for the demo account. It reads the public devnet but 
    | Include files outside the root directory in the Build Step | Enabled (the build needs `../../slhts` and `../../rslh`) |
    | Framework Preset, Build Command, Output Directory | Leave as detected. `vercel.json` sets `vite`, `bash scripts/vercel-build.sh` and `dist` |
    | Install Command | Default (`npm install`; links `slhts` through its `file:` dependency) |
-   | Node.js Version | 24.x. `"engines": {"node": ">=22"}` in `package.json` overrides this setting with the newest major, so change it to `"24.x"` to pin the version |
+   | Node.js Version | 24.x (also pinned by `"engines": {"node": "24.x"}` in `package.json`, which takes precedence) |
+   | Function Region | London (`lhr1`), next to the devnet. On the Hobby plan `regions` in `vercel.json` is ignored, so set it here |
    | Ignored Build Step | `[ -n "$VERCEL_GIT_PREVIOUS_SHA" ] && git diff --quiet "$VERCEL_GIT_PREVIOUS_SHA" HEAD -- . ../../slhts ../../rslh`. This skips the build unless `apps/web`, `slhts` or `rslh` changed since the branch's last successful deployment. It still builds a branch's first deployment, and builds when that commit is outside Vercel's shallow clone |
 
 2. Under **Environment Variables**, add the variables from [`.env.example`](.env.example):
@@ -100,8 +110,8 @@ Exchange and Proof screens for the demo account. It reads the public devnet but 
 
 3. Deploy. The build command runs `scripts/vercel-build.sh` and stops with a clear error if a
    step fails. It:
-   - installs stable Rust (rustup, minimal profile, `wasm32-unknown-unknown`), because the build
-     image has none;
+   - uses the build image's Rust (rustc 1.92.0 at the time of writing) and adds the
+     `wasm32-unknown-unknown` target, or installs Rust with rustup (minimal profile) if it is missing;
    - downloads wasm-bindgen 0.2.130 for x86_64 Linux and checks it against the SHA-256 pinned in
      the script (it reads the required version from `rslh/Cargo.lock` and stops if the pins do
      not cover that version);
@@ -126,6 +136,29 @@ What `vercel.json` configures:
 
 The browser calls the RPC and mempool URLs directly. If `QSW_RPC_URL` or `QSW_MEMPOOL_URL`
 points at another origin, add that origin to `connect-src` in `vercel.json`.
+
+### Deploying with the CLI (how the shared devnet app is deployed)
+
+CLI deployments upload the repository root, and Vercel does not read `.gitignore`. The root
+[`.vercelignore`](../../.vercelignore) is therefore an allowlist: only `apps/web`, `slhts` and `rslh`
+sources are uploaded, never `.secrets/`, `.state/`, `.generated/`, `.env*` files or build outputs.
+Keep it that way before running `vercel deploy`.
+
+```bash
+vercel project add quantum-smart-wallet
+printf '%s' '{"rootDirectory":"apps/web","framework":"vite","nodeVersion":"24.x",
+  "sourceFilesOutsideRootDirectory":true,"serverlessFunctionRegion":"lhr1"}' |
+  vercel api /v9/projects/quantum-smart-wallet -X PATCH --input -
+vercel link --yes --project quantum-smart-wallet            # from the repository root
+node -e 'process.stdout.write(require("./.secrets/devnet-operator.json").private_key)' |
+  vercel env add QSW_OPERATOR_PRIVATE_KEY production,preview --sensitive
+printf '%s' https://altmempool.bailo.london/rpc | vercel env add QSW_RPC_URL production,preview --no-sensitive
+# likewise QSW_MEMPOOL_URL and QSW_DEPLOYMENT_URL (values from /deployment.json)
+vercel deploy --prod                                         # from the repository root
+```
+
+Production: https://quantum-smart-wallet.vercel.app. `/api/config` must report `operatorReady: true`
+and the sponsor address derived from the key (`0xb7Ca…52c1` on the shared devnet).
 
 ## Security model
 
