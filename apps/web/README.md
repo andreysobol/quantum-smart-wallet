@@ -1,254 +1,155 @@
 # Quantum Smart Wallet web app
 
-A browser wallet for the [shared devnet](../../README.md#shared-devnet) (chain 81411338). Each
-wallet is a `QuantumAccount` that validates SLH-DSA-SHA2-128s signatures natively under EIP-8141.
+[Open the wallet](https://quantum-smart-wallet.vercel.app/)
 
-- **Keys in the browser.** `slhts` (rslh compiled to WebAssembly) generates keys and signs in a
-  module Web Worker. A new wallet opens straight on the portfolio. Instead of a seed phrase, you
-  back up from there: export a passphrase-encrypted backup file and prove you can restore it.
-- **Operator-created accounts.** The server's operator key creates the account through
-  `QuantumAccountFactory`, pays its 0.012 ETH alternative-mempool stake, and mints test dUSDC
-  from the faucet.
-- **Sponsored swaps.** A dUSDC/WETH swap on the guarded Uniswap v4 pool is one EIP-8141 frame
-  transaction with five frames. The browser signs it. The server checks it against a strict
-  policy and co-signs it as gas sponsor. The browser then submits it to the alternative mempool
-  and follows it through admission, inclusion and the account's on-chain signature check.
+A browser wallet for the shared devnet (chain **81411338**). QuantumAccount validates
+SLH-DSA-SHA2-128s signatures through EIP-8141. The browser signs through the WASM library;
+the server sponsors gas, and the browser submits transactions to the ERC-8421 alternative mempool.
 
-> Test tokens on a devnet only. Research code, not audited.
+## Try it
+
+1. Create an account and export a passphrase-encrypted backup. There is no seed phrase.
+2. Get test dUSDC from the faucet in **Portfolio**.
+3. Swap dUSDC and WETH in **Exchange**, or register a `qsw.eth` name in **Names**.
+4. Follow the transaction through mempool admission and block inclusion in **Proof**.
+
+The operator creates accounts and funds their 0.012 ETH mempool stake. Users need no ETH
+for sponsored transactions. Names cost 5 dUSDC per year, with registration for 1–5 years.
+
+Names are held by a per-account ENSVault and resolve to the QuantumAccount. See the
+[ENSv2 contracts](../../slhsol/ensv2/README.md) for ownership, registration and deployment addresses.
+
+## Project structure
 
 | Path | Contents |
 | --- | --- |
-| `src/` | React app: screens, design system, signer worker, chain logic |
-| `shared/` | Isomorphic code: constants, types, ABIs, frame-transaction codec, swap builder, quotes |
-| `api/`, `server/` | Vercel Functions: `GET /api/config`, `POST /api/account`, `POST /api/faucet`, `POST /api/sponsor` |
-| `scripts/vercel-build.sh` | Builds from a clean checkout: Rust and wasm-bindgen if missing, then `slhts`, then the app |
-| `test/`, `e2e/` | Vitest unit tests, Playwright browser tests |
+| `src/` | Screens, styles, signer worker and browser chain operations |
+| `shared/` | ABIs, frame-transaction codec, swap and ENS builders, quotes and types |
+| `api/`, `server/` | Vercel Functions for configuration, account creation, faucet and sponsorship |
+| `scripts/vercel-build.sh` | Rust/WASM and frontend build |
+| `test/`, `e2e/` | Vitest and Playwright tests |
 
 ## Local development
 
-You need Node.js 22 or newer (24 recommended). The WebAssembly signer also needs Rust with the
-`wasm32-unknown-unknown` target and `wasm-bindgen-cli` at the version in `rslh/Cargo.lock`
-(0.2.130).
+Use Node.js 24. The signer build requires Rust, the `wasm32-unknown-unknown` target and
+`wasm-bindgen-cli` matching `rslh/Cargo.lock`.
 
-```bash
+From the repository root:
+
+```sh
 cd apps/web
 npm install
-npm run build:wasm             # builds ../../slhts: rslh -> WebAssembly -> TypeScript
-cp .env.example .env.local     # set QSW_OPERATOR_PRIVATE_KEY to enable writes
-npm run dev                    # http://localhost:5173, with /api served by the dev plugin
+npm run build:wasm
+cp .env.example .env.local
+npm run dev
 ```
 
-For the shared devnet, the operator key is the `private_key` field of
-`../../.secrets/devnet-operator.json` (see [the demo guide](../../demo/README.md)).
+Set `QSW_OPERATOR_PRIVATE_KEY` in `.env.local` to enable account creation, the faucet and
+sponsorship. For the shared devnet, use the `private_key` field from the local, ignored
+`../../.secrets/devnet-operator.json`. Without it, the app runs read-only and `/api/config`
+reports `operatorReady: false`.
 
-If Rust or wasm-bindgen is missing, run `bash scripts/vercel-build.sh --check` to see what is
-missing and what would be installed. `bash scripts/vercel-build.sh` then does the whole build:
+The dev server runs at `http://localhost:5173` and serves the API locally. `npm run build`
+type-checks and builds to `dist/`; `npm run preview` serves the build with the same API handlers.
 
-- If Rust is missing, it installs it with rustup (minimal profile) into `~/.cargo` and
-  `~/.rustup`, without editing your shell profiles.
-- It downloads the pinned wasm-bindgen release, checks its SHA-256, and keeps it in
-  `node_modules/.cache/qsw-tools`.
-- It builds `slhts`, then builds the app.
+If build tools are missing, run `bash scripts/vercel-build.sh --check` to inspect the requirements.
+Running the script without `--check` installs missing Rust/WASM tools and builds the signer and app.
 
-Without an operator key the app still loads and reads the chain, but `/api/config` reports
-`operatorReady: false` and the server refuses account creation, the faucet and sponsorship.
-`npm run build` type-checks and writes `dist/`. `npm run preview` serves `dist/` with the same
-`/api` handlers.
+## Environment variables
+
+Use the same variable names in `.env.local` and Vercel. See [`.env.example`](.env.example)
+for all limits and their defaults.
+
+| Variable | Purpose |
+| --- | --- |
+| `QSW_OPERATOR_PRIVATE_KEY` | Server secret for account creation, stake funding and the faucet. Must be the deployed DemoUSDC minter. Also sponsors gas unless a separate sponsor key is set. |
+| `QSW_SPONSOR_PRIVATE_KEY` | Optional server secret for a separate gas payer. |
+| `QSW_DEPLOYMENT_URL` | Deployment manifest: `https://altmempool.bailo.london/deployment.json` |
+| `QSW_RPC_URL` | Chain RPC: `https://altmempool.bailo.london/rpc` |
+| `QSW_MEMPOOL_URL` | Alternative mempool: `https://altmempool.bailo.london/mempool` |
+
+Keep private keys server-side, without a `VITE_` prefix. In Vercel, mark them Sensitive and
+scope them to Production; enable them for Preview only for trusted branches. Redeploy after
+changing variables.
+
+The browser calls the RPC and mempool directly. If either uses another origin, add it to
+`connect-src` in [vercel.json](vercel.json).
+
+## Deploy to Vercel
+
+Import the repository with these settings:
+
+| Setting | Value |
+| --- | --- |
+| Root Directory | `apps/web` |
+| Include files outside the root directory in the Build Step | Enabled; the build uses `slhts` and `rslh` |
+| Framework | Vite |
+| Build Command | `bash scripts/vercel-build.sh` |
+| Output Directory | `dist` |
+| Node.js | 24.x |
+| Function Region | London (`lhr1`) |
+
+Add the environment variables above and deploy. The build script prepares Rust and wasm-bindgen,
+verifies the downloaded wasm-bindgen checksum, builds `slhts`, then builds the frontend.
+
+For CLI deployments, run `vercel deploy --prod` from the repository root after linking the project.
+The root [`.vercelignore`](../../.vercelignore) limits uploads to app and signer sources, excluding
+secrets, local state and environment files. Preserve that allowlist.
+
+After deployment, check `/api/config` for `operatorReady: true` and the expected sponsor address.
+If an Ignored Build Step skips a configuration-only redeployment, disable that option in the
+Redeploy dialog.
 
 ## Tests
 
-```bash
+Run from `apps/web`:
+
+```sh
 npm run typecheck
-npm test                       # vitest: codec golden vectors, swaps, quotes, sponsor policy, backups, onboarding
-QSW_LIVE_READ=1 npm test       # adds read-only checks against the public devnet
-npm run e2e                    # Playwright, Chromium: WASM signer in a worker, backup round trip, and the app
+npm test
+npm run e2e
 ```
 
-`e2e/responsive.spec.ts` drives 12 screen states through 9 viewports (wide desktop to 320 px, short laptop
-windows, landscape phone, 200% zoom) and fails on horizontal overflow, a primary action outside the first
-viewport, or touch targets under 44 px on phones; `QSW_SHOTS_DIR=<dir>` also saves screenshots. The adaptive
-rules live in `src/design/responsive.css`, layered over the verbatim design CSS.
+Unit tests cover transaction encoding, swaps, quotes, sponsor policies, backups and onboarding.
+Browser tests cover the WASM signer, backup restoration and responsive layouts. The default
+app tests mock account creation and read the public devnet without sending transactions.
 
-The app e2e (`e2e/app.spec.ts`) starts `vite` on port 4173 with the operator keys forced empty, then checks
-onboarding (account creation is mocked in the browser), the backup check, restore, and the read-only Portfolio,
-Exchange and Proof screens for the demo account. It reads the public devnet but never sends a transaction.
+Read-only devnet checks:
 
-The live run is opt-in because it spends operator ETH (0.012 ETH stake per account plus sponsored gas). Through
-the real UI it creates a factory account, verifies a backup, mints test dUSDC and swaps dUSDC→WETH and
-WETH→dUSDC with sponsored gas, then checks receipts, payer, frame statuses, mempool admission and balances on chain:
+```sh
+QSW_LIVE_READ=1 npm test
+```
 
-```bash
-QSW_LIVE=1 npx playwright test -c playwright.live.config.ts                      # local dev server + .env.local
+Live browser tests create accounts, mint dUSDC, swap in both directions and register names.
+They spend operator devnet ETH and check receipts, frame statuses, sponsorship, balances,
+name ownership and resolution.
+
+```sh
+QSW_LIVE=1 npx playwright test -c playwright.live.config.ts
 QSW_LIVE=1 QSW_LIVE_URL=https://quantum-smart-wallet.vercel.app npx playwright test -c playwright.live.config.ts
 ```
 
-## Devnet ENSv2 names
+## Keys and sponsorship
 
-The **Names** tab registers `<label>.qsw.eth`. These are Devnet ENSv2 names on chain 81411338 only: they do
-not reserve public `.eth` names. The namespace and its contracts are described in
-[`slhsol/ensv2/README.md`](../../slhsol/ensv2/README.md).
-
-**Typing a name.** The app normalizes it with ENSIP-15 and reads availability and the registrar's price.
-You choose 1–5 years.
-
-**Registering.** One PQ-signed transaction does everything: it opens the account's name vault (first
-time only), approves exactly the quoted dUSDC, registers the name to the vault, and points it at the account.
-The server sponsors it only as the explicit `ens-register` template (`server/ensPolicy.ts`); swaps keep their
-own policy.
-
-**Ownership.** The **vault** owns the name token and the **account** controls the vault. The list under
-"Your names" re-checks both on chain, plus forward resolution through `UniversalResolverV2`. The name chosen
-as the wallet name appears in the header and the Portfolio only while those checks hold.
-
-`/api/config` serves the namespace as `ens`, which is null when it is missing or fails its on-chain check.
-Only names are disabled in that case. To verify:
-
-```bash
-QSW_LIVE_READ=1 npx vitest run test/ens.config.test.ts test/ens.chain.live.test.ts   # namespace wiring, vault control
-QSW_LIVE=1 npx playwright test -c playwright.live.config.ts e2e/names.live.spec.ts     # spends devnet funds
-```
-
-The live run checks the following on chain:
-- the dUSDC payment
-- the vault as token owner and the account as controller
-- resolution to the account
-- the receipt, the sponsor as payer and PQ validation in frame 0
-- the mempool's admission checks
-
-It then expects the sponsor to refuse the taken name, a payment other than the quote, a forged signature and
-a replay.
-
-## Deploying to Vercel
-
-1. Import the repository as a new project. On the **Build and Deployment** settings page, set:
-
-   | Setting | Value |
-   | --- | --- |
-   | Root Directory | `apps/web` |
-   | Include files outside the root directory in the Build Step | Enabled (the build needs `../../slhts` and `../../rslh`) |
-   | Framework Preset, Build Command, Output Directory | Leave as detected. `vercel.json` sets `vite`, `bash scripts/vercel-build.sh` and `dist` |
-   | Install Command | Default (`npm install`; links `slhts` through its `file:` dependency) |
-   | Node.js Version | 24.x (also pinned by `"engines": {"node": "24.x"}` in `package.json`, which takes precedence) |
-   | Function Region | London (`lhr1`), next to the devnet. On the Hobby plan `regions` in `vercel.json` is ignored, so set it here |
-   | Ignored Build Step | `[ -n "$VERCEL_GIT_PREVIOUS_SHA" ] && git diff --quiet "$VERCEL_GIT_PREVIOUS_SHA" HEAD -- . ../../slhts ../../rslh`. This skips the build unless `apps/web`, `slhts` or `rslh` changed since the branch's last successful deployment. It still builds a branch's first deployment, and builds when that commit is outside Vercel's shallow clone |
-
-2. Under **Environment Variables**, add the variables from [`.env.example`](.env.example):
-
-   | Name | Type | Purpose |
-   | --- | --- | --- |
-   | `QSW_OPERATOR_PRIVATE_KEY` | Secret | Creates accounts and funds their stake. For the faucet it must be the DemoUSDC minter (`0xb7Ca4C821205f6721bacbd48052bEbF6A1f252c1` on the shared devnet) |
-   | `QSW_SPONSOR_PRIVATE_KEY` | Secret | Optional. A separate key that pays swap gas; defaults to the operator key |
-   | `QSW_DEPLOYMENT_URL`, `QSW_RPC_URL`, `QSW_MEMPOOL_URL` | Config | Optional overrides of the deployment manifest |
-   | `QSW_FAUCET_AMOUNT`, `QSW_FAUCET_MAX_BALANCE`, `QSW_MAX_SWAP_USDC`, `QSW_MAX_SWAP_WETH`, `QSW_MIN_OPERATOR_BALANCE` | Config | Optional limits in raw units |
-
-   - Mark both keys **Secret** (sensitive), so they are write-only once saved.
-   - Scope the keys to Production. Add them to Preview only if you trust every branch that can
-     deploy: preview builds and functions can read them.
-   - Never give a secret a `VITE_` prefix. Vite inlines `VITE_*` values into the public bundle.
-   - Variable changes apply only to new deployments, so redeploy after editing them. In the
-     Redeploy dialog, uncheck **Use project's Ignore Build Step**: an unchanged commit would
-     otherwise be skipped.
-
-3. Deploy. The build command runs `scripts/vercel-build.sh` and stops with a clear error if a
-   step fails. It:
-   - uses the build image's Rust (rustc 1.92.0 at the time of writing) and adds the
-     `wasm32-unknown-unknown` target, or installs Rust with rustup (minimal profile) if it is missing;
-   - downloads wasm-bindgen 0.2.130 for x86_64 Linux and checks it against the SHA-256 pinned in
-     the script (it reads the required version from `rslh/Cargo.lock` and stops if the pins do
-     not cover that version);
-   - builds `slhts` (`npm ci && npm run build`);
-   - runs `npm run build`.
-
-What `vercel.json` configures:
-
-- **Functions.** The functions in `api/` run on Node.js with `maxDuration: 60` s. Account
-  creation waits up to 45 s for its receipt.
-- **Rewrites.** Every path except `/api`, `/api/*` and `/assets/*` is rewritten to
-  `/index.html`, so unknown API routes and stale asset URLs return 404, not the app shell.
-- **Security headers.** Every response gets:
-  - a strict Content Security Policy: scripts only from this origin, plus `'wasm-unsafe-eval'` for
-    the signer; network requests only to this origin and `https://altmempool.bailo.london`; no
-    framing, plugins, `<base>` or form posts;
-  - `X-Content-Type-Options: nosniff`;
-  - `Referrer-Policy: no-referrer`;
-  - a `Permissions-Policy` that disables unused device APIs;
-  - `Cross-Origin-Opener-Policy: same-origin`.
-- **Caching.** Hashed files under `/assets/` are cached as immutable for a year.
-
-The browser calls the RPC and mempool URLs directly. If `QSW_RPC_URL` or `QSW_MEMPOOL_URL`
-points at another origin, add that origin to `connect-src` in `vercel.json`.
-
-### Deploying with the CLI (how the shared devnet app is deployed)
-
-CLI deployments upload the repository root, and Vercel does not read `.gitignore`. The root
-[`.vercelignore`](../../.vercelignore) is therefore an allowlist: only `apps/web`, `slhts` and `rslh`
-sources are uploaded, never `.secrets/`, `.state/`, `.generated/`, `.env*` files or build outputs.
-Keep it that way before running `vercel deploy`.
-
-```bash
-vercel project add quantum-smart-wallet
-printf '%s' '{"rootDirectory":"apps/web","framework":"vite","nodeVersion":"24.x",
-  "sourceFilesOutsideRootDirectory":true,"serverlessFunctionRegion":"lhr1"}' |
-  vercel api /v9/projects/quantum-smart-wallet -X PATCH --input -
-vercel link --yes --project quantum-smart-wallet            # from the repository root
-node -e 'process.stdout.write(require("./.secrets/devnet-operator.json").private_key)' |
-  vercel env add QSW_OPERATOR_PRIVATE_KEY production,preview --sensitive
-printf '%s' https://altmempool.bailo.london/rpc | vercel env add QSW_RPC_URL production,preview --no-sensitive
-# likewise QSW_MEMPOOL_URL and QSW_DEPLOYMENT_URL (values from /deployment.json)
-vercel deploy --prod                                         # from the repository root
-```
-
-Production: https://quantum-smart-wallet.vercel.app. `/api/config` must report `operatorReady: true`
-and the sponsor address derived from the key (`0xb7Ca…52c1` on the shared devnet).
-
-## Security model
-
-- **Signing key.** The SLH-DSA secret key is generated inside the signer worker. The app decrypts
-  it only there, only while it signs or exports, checks or imports a backup, and never sends it
-  to the page's own code or to the server. Backup files are encrypted with your passphrase
-  (PBKDF2-SHA256 with 600,000 iterations, then AES-GCM-256).
-- **Key at rest.** In IndexedDB the key is AES-GCM encrypted under a non-extractable device key
-  that is stored in the same record. That keeps the raw key out of casual inspection of the
-  browser's files, and no more:
-  - "Non-extractable" stops a script from exporting the device key, not from using it. Any script
-    running on this origin, such as an XSS payload or a compromised dependency, can open the key
-    store, decrypt the key and send it elsewhere. Unlike misusing the signer while the page is
-    open, a stolen key keeps working after the tab is closed.
-  - Anyone with a copy of the browser profile has both the device key and the ciphertext.
-- **Server keys.** The operator and sponsor keys come only from the server environment. They are
-  never logged, returned by the API or included in the client bundle. The repository's
-  `.vercelignore` keeps `.secrets/`, `.state/` and `.env*` files (except `.env.example`) out of
-  Vercel CLI uploads.
-- **Sponsorship policy.** The server never submits user transactions. It co-signs a swap as
-  sponsor only after it checks:
-  - the exact five-frame shape;
-  - the pinned router and guarded pool;
-  - the amount, deadline and fee limits;
-  - the account's current nonce;
-  - a valid SLH-DSA signature, verified on chain with the verifier contract.
-- **Chain check.** Before using the RPC endpoint, the browser checks that it serves the expected
-  chain ID and genesis hash.
-
-## Operator responsibilities
-
-- Keep the operator and sponsor accounts funded with devnet ETH. Each new account locks a
-  0.012 ETH stake, and every sponsored swap pays gas. The API refuses to create an account or
-  sponsor a swap when that would leave less than `QSW_MIN_OPERATOR_BALANCE`.
-- Protect the keys. Anyone holding the operator key controls its ETH and the dUSDC mint.
-- If a key leaks, rotate it and redeploy. For abuse, check the function logs for rejected
-  requests and rate limiting.
+- The SLH-DSA key is generated and used inside a Web Worker. Backups use PBKDF2-SHA256
+  with 600,000 iterations and AES-256-GCM encryption.
+- IndexedDB stores the key encrypted with a non-extractable device key in the same record.
+  This does not protect against malicious code running on the app's origin or access to the
+  browser profile. Clearing site data deletes local keys; keep the backup and its passphrase.
+- Operator and sponsor keys stay in the server environment. Keep both accounts funded:
+  account creation locks a 0.012 ETH stake, and sponsored transactions consume gas.
+  `QSW_MIN_OPERATOR_BALANCE` sets the required reserve.
+- The sponsor validates the transaction template, targets, amounts, fees, nonce and on-chain
+  SLH-DSA signature. Swap and ENS registration have separate policies. The browser submits
+  the co-signed transaction.
+- The app checks the chain ID and genesis hash. ENS is disabled when its namespace is missing
+  or fails the server's on-chain configuration check.
 
 ## Limitations
 
-- Devnet only (chain 81411338). The tokens have no value, and `qsw.eth` names are Devnet ENSv2 names, not
-  public `.eth` names.
-- Rate limits are kept in memory per function instance. They are best effort, not a security
-  boundary.
-- Quotes assume the swap does not cross an initialized tick (single-range math). The minimum
-  output, set by your slippage tolerance, still protects the swap on chain.
-- Keys live in one browser profile, so clearing site data deletes them. Keep the backup file and
-  its passphrase.
-- The app opens one wallet per browser profile. Creating or restoring a different wallet asks first.
-  The replaced wallet's encrypted key stays in the browser, but the app opens it again only from
-  its backup file.
-- Not audited.
+- Devnet tokens have no value. The contracts and app are not audited.
+- Rate limits are in memory per function instance and do not provide global abuse protection.
+- Swap quotes use single-range math and assume no initialized tick is crossed. The transaction's
+  minimum output enforces the selected slippage limit on chain.
+- One wallet is active per browser profile. Switching wallets requires confirmation; reopening
+  a replaced wallet requires its backup.
