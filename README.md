@@ -12,7 +12,7 @@ A native Ethereum wallet that replaces classical transaction authorization with 
 ## What Was Built
 
 - [x] [Rust post-quantum (SLH-DSA-SHA2-128s) cryptography library and CLI](rslh/)
-- [x] [WebAssembly and TypeScript rust wasm binding library](slhts/)
+- [x] [TypeScript bindings: Rust WASM library](slhts/)
 - [x] [On-chain SLH-DSA signature verifier](slhsol/src/SlhDsaSha2_128s.sol)
 - [x] [Native quantum smart account](slhsol/src/QuantumAccount.sol)
 - [x] [Quantum account factory](slhsol/src/QuantumAccountFactory.sol)
