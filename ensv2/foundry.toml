@@ -1,0 +1,13 @@
+# Devnet ENSv2 namespace (qsw.eth) for the shared devnet, chain 81411338.
+# Built against the official ensdomains/contracts-v2, pinned in lib/contracts-v2
+# at tag v2-mainnet-deployment-1 (62778d80038e50cb23514eab1b7d66ceb8a41e1c).
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["lib"]
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+allow_paths = ["../slhsol"]

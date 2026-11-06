@@ -25,4 +25,5 @@ export type Screen =
   | "backup"
   | "portfolio"
   | "exchange"
+  | "names"
   | "proof";

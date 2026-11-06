@@ -1,0 +1,14 @@
+{
+  "name": "qsw-ensv2-devnet",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "deploy": "node script/deploy.ts"
+  },
+  "dependencies": {
+    "viem": "2.57.16"
+  }
+}

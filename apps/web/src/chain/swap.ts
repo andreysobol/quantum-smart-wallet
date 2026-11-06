@@ -99,16 +99,16 @@ const sleep = (ms: number, signal?: AbortSignal) =>
 const zeros = (bytes: number): Hex => `0x${"00".repeat(bytes)}`;
 const hexBytes = (hex: string) => (hex.length - 2) / 2;
 
-function withSignature(tx: FrameTx, index: number, signature: Hex): FrameTx {
+export function withSignature(tx: FrameTx, index: number, signature: Hex): FrameTx {
   return { ...tx, signatures: tx.signatures.map((entry, i) => (i === index ? { ...entry, signature } : entry)) };
 }
 
-/** Readable message for an /api/sponsor failure. */
-export function describeSponsorError(error: unknown): string {
+/** Readable message for an /api/sponsor failure; `what` names the transaction ("swap", "registration"). */
+export function describeSponsorError(error: unknown, what = "swap"): string {
   if (!(error instanceof ApiError)) return "The sponsor request failed unexpectedly. Try again.";
   switch (error.code) {
     case "policy_rejected":
-      return `The sponsor declined this swap: ${error.message}`;
+      return `The sponsor declined this ${what}: ${error.message}`;
     case "invalid_signature":
       return `The sponsor could not verify your SLH-DSA signature: ${error.message}`;
     case "rate_limited":
@@ -190,7 +190,7 @@ async function fetchAdmission(config: SwapConfig, hash: Hex, signal?: AbortSigna
   }
 }
 
-async function waitForAdmission(
+export async function waitForAdmission(
   config: SwapConfig,
   hash: Hex,
   until: (a: AdmissionSummary) => boolean,
@@ -234,7 +234,7 @@ async function lookUpTransaction(
 
 const DEAD_STATUSES = new Set(["Cancelled", "Reverted"]);
 
-async function waitForReceipt(config: SwapConfig, hash: Hex, signal?: AbortSignal): Promise<RawReceipt> {
+export async function waitForReceipt(config: SwapConfig, hash: Hex, signal?: AbortSignal): Promise<RawReceipt> {
   const end = Date.now() + INCLUSION_TIMEOUT_MS;
   for (let poll = 0; Date.now() < end; poll++) {
     try {
@@ -427,42 +427,7 @@ export async function runSwap(
 
     stage = "submit";
     emit("active", "Sending to the alternative mempool");
-    try {
-      const returned = await rpcCall<string>(config.mempoolUrl, "eth_sendFrameTransaction", [toWire(final)], {
-        signal,
-        timeoutMs: 60_000,
-      });
-      if (typeof returned !== "string" || returned.toLowerCase() !== hash.toLowerCase()) {
-        fail("The mempool answered with a different transaction hash than the one you signed.");
-      }
-    } catch (error) {
-      if (error instanceof SwapError || signal?.aborted) throw error;
-      const message = error instanceof Error ? error.message : String(error);
-      if (!(error instanceof RpcError && /already known/i.test(message))) {
-        // Only a JSON-RPC refusal proves the mempool did not take it. Otherwise the answer may be all
-        // that was lost: look the transaction up by its hash before failing, and while it may still
-        // land, report an unknown status rather than a rejection that would invite a second swap.
-        const refused = error instanceof RpcError && error.method !== "fetch" && REFUSAL_CODES.has(error.code);
-        if (!refused) emit("active", "No answer from the mempool: looking the transaction up by its hash");
-        const end = Date.now() + (refused ? 0 : RECONCILE_TIMEOUT_MS);
-        for (;;) {
-          const found = await lookUpTransaction(config, hash, signal);
-          if (found.seen) break;
-          if (found.admission?.outcome === "rejected") fail(describeRejection(found.admission));
-          if (refused) fail(describeMempoolError(message));
-          if (Date.now() >= end) {
-            throw new SwapError(
-              stage,
-              `The mempool's answer was lost (${message}), so this swap's status is unknown. It may still be included: check the transaction on the explorer before trying again.`,
-              hash,
-              undefined,
-              true,
-            );
-          }
-          await sleep(2_000, signal);
-        }
-      }
-    }
+    await submitFrameTransaction(config, final, hash, () => emit("active", "No answer from the mempool: looking the transaction up by its hash"), signal);
     emit("done", "Accepted by the mempool");
 
     stage = "admission";
@@ -517,7 +482,58 @@ export async function runSwap(
   }
 }
 
-function describeUnexpected(error: unknown): string {
+/**
+ * Send a co-signed frame transaction to the alternative mempool. Only a JSON-RPC refusal proves the
+ * mempool did not take it; otherwise the answer may be all that was lost, so the transaction is looked
+ * up by its hash before failing, and while it may still land the error is marked unresolved rather than
+ * reported as a rejection that would invite a second attempt. Throws SwapError at the "submit" stage.
+ */
+export async function submitFrameTransaction(
+  config: SwapConfig,
+  final: FrameTx,
+  hash: Hex,
+  onUnanswered: () => void,
+  signal?: AbortSignal,
+  what = "swap",
+): Promise<void> {
+  const fail = (message: string): never => {
+    throw new SwapError("submit", message, hash);
+  };
+  try {
+    const returned = await rpcCall<string>(config.mempoolUrl, "eth_sendFrameTransaction", [toWire(final)], {
+      signal,
+      timeoutMs: 60_000,
+    });
+    if (typeof returned !== "string" || returned.toLowerCase() !== hash.toLowerCase()) {
+      fail("The mempool answered with a different transaction hash than the one you signed.");
+    }
+  } catch (error) {
+    if (error instanceof SwapError || signal?.aborted) throw error;
+    const message = error instanceof Error ? error.message : String(error);
+    if (error instanceof RpcError && /already known/i.test(message)) return;
+    const refused = error instanceof RpcError && error.method !== "fetch" && REFUSAL_CODES.has(error.code);
+    if (!refused) onUnanswered();
+    const end = Date.now() + (refused ? 0 : RECONCILE_TIMEOUT_MS);
+    for (;;) {
+      const found = await lookUpTransaction(config, hash, signal);
+      if (found.seen) return;
+      if (found.admission?.outcome === "rejected") fail(describeRejection(found.admission));
+      if (refused) fail(describeMempoolError(message));
+      if (Date.now() >= end) {
+        throw new SwapError(
+          "submit",
+          `The mempool's answer was lost (${message}), so this ${what}'s status is unknown. It may still be included: check the transaction on the explorer before trying again.`,
+          hash,
+          undefined,
+          true,
+        );
+      }
+      await sleep(2_000, signal);
+    }
+  }
+}
+
+export function describeUnexpected(error: unknown): string {
   if (error instanceof RpcError) return `The devnet RPC failed: ${error.message}`;
   if (error instanceof Error && error.name === "SignerError") return error.message;
   if (error instanceof Error && error.message) return error.message;

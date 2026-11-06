@@ -282,6 +282,15 @@ test("portfolio, exchange and proof with real devnet data", async ({ page }) => 
   await sweep(page, "proof", ".p-title", { minHeight: 600 });
 });
 
+test("names with a long label", async ({ page }) => {
+  const config = await openApp(page);
+  await openDemoWallet(page, config);
+  await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: "Names" }).click();
+  await page.getByLabel("Name", { exact: true }).fill(`averyveryverylongquantumname${Date.now().toString(36)}`);
+  await expect(page.locator("#ens-status")).toHaveText(/is available/, { timeout: 30_000 });
+  await sweep(page, "names", ".terms .btn.wide", { minHeight: 600 });
+});
+
 test("long balances and amounts", async ({ page }) => {
   const config = await openApp(page);
   await routeRpc(page, config, { bigBalances: true });

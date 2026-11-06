@@ -1,5 +1,6 @@
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import type { Address } from "../shared/types.js";
+import { loadEns } from "./ens.js";
 import { readEnv, type ServerEnv } from "./env.js";
 import { ApiFailure, RateLimiter, RecentKeys } from "./http.js";
 import { httpRpc, parseManifest, verifyChain, type Deployment, type Rpc } from "./manifest.js";
@@ -84,9 +85,13 @@ export class ServerContext {
 
   private async loadChain(): Promise<Chain> {
     const { rpcUrl, mempoolUrl, genesisHash } = this.env;
-    const base = parseManifest(await this.fetchManifest(this.env.deploymentUrl), { rpcUrl, mempoolUrl, genesisHash });
+    const manifest = await this.fetchManifest(this.env.deploymentUrl);
+    const base = parseManifest(manifest, { rpcUrl, mempoolUrl, genesisHash });
     const rpc = this.rpcFor(base.rpcUrl);
-    const deployment = await verifyChain(base, { rpc, mempool: this.rpcFor(base.mempoolUrl) });
+    const verified = await verifyChain(base, { rpc, mempool: this.rpcFor(base.mempoolUrl) });
+    const { ens, problem } = await loadEns(manifest, verified, rpc);
+    if (problem) console.warn(`[api] ${problem}`);
+    const deployment = { ...verified, ens };
     return {
       deployment,
       rpc,

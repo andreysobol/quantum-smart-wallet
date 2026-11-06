@@ -8,6 +8,7 @@ import type { Address, CreateAccountResponse, FaucetResponse, Hex, PublicConfig,
 import { defaultContext, type ServerContext } from "./context.js";
 import { ApiFailure, BODY_LIMIT, clientIp, enforce, fail, json, readJson, requireSameOriginJson, respond } from "./http.js";
 import type { Deployment, Rpc } from "./manifest.js";
+import { checkEnsSponsorPolicy } from "./ensPolicy.js";
 import { checkSponsorPolicy, MAX_DEADLINE_SECONDS } from "./policy.js";
 
 export function publicConfig(ctx: ServerContext, d: Deployment): PublicConfig {
@@ -33,6 +34,7 @@ export function publicConfig(ctx: ServerContext, d: Deployment): PublicConfig {
       maxDeadlineSeconds: MAX_DEADLINE_SECONDS,
     },
     fees: { maxPriorityFeePerGas: FEES.maxPriorityFeePerGas.toString(), maxFeePerGas: FEES.maxFeePerGas.toString() },
+    ens: d.ens,
   };
 }
 
@@ -131,13 +133,19 @@ export function faucetRoute(request: Request, ctx: ServerContext = defaultContex
   });
 }
 
-/** POST /api/sponsor {tx}: strict policy, then co-sign. The server never submits the transaction. */
+/**
+ * POST /api/sponsor {tx, kind?}: the template named by `kind` ("swap" by default, or "ens-register"),
+ * its strict policy, then co-sign. The server never submits the transaction.
+ */
 export function sponsorRoute(request: Request, ctx: ServerContext = defaultContext()): Promise<Response> {
   return respond(async () => {
     requireSameOriginJson(request);
     if (!ctx.env.sponsorKey) fail(503, "not_configured", "Swap sponsorship is not available on this server (no sponsor key configured).");
     enforce(ctx.limits.sponsorIp, clientIp(request), "sponsorship");
-    const wire = field(await readJson(request, BODY_LIMIT.sponsor), "tx");
+    const request_ = await readJson(request, BODY_LIMIT.sponsor);
+    const wire = field(request_, "tx");
+    const kind = field(request_, "kind") ?? "swap";
+    if (kind !== "swap" && kind !== "ens-register") fail(400, "bad_request", 'kind must be "swap" or "ens-register".');
     let tx;
     try {
       tx = fromWire(wire);
@@ -148,7 +156,13 @@ export function sponsorRoute(request: Request, ctx: ServerContext = defaultConte
     const { deployment, rpc, sponsor } = await ctx.chain();
     if (!sponsor) return fail(503, "not_configured", "Swap sponsorship is not available on this server.");
     const env = ctx.env;
-    await checkSponsorPolicy(tx, { deployment, sponsor: sponsor.address, maxSwapUsdc: env.maxSwapUsdc, maxSwapWeth: env.maxSwapWeth, reserve: env.minOperatorBalance, rpc });
+    if (kind === "ens-register") {
+      const ens = deployment.ens;
+      if (!ens) return fail(503, "not_configured", "Devnet ENSv2 names are not available on this server.");
+      await checkEnsSponsorPolicy(tx, { deployment: { ...deployment, ens }, sponsor: sponsor.address, reserve: env.minOperatorBalance, rpc });
+    } else {
+      await checkSponsorPolicy(tx, { deployment, sponsor: sponsor.address, maxSwapUsdc: env.maxSwapUsdc, maxSwapWeth: env.maxSwapWeth, reserve: env.minOperatorBalance, rpc });
+    }
     // Charged only now that the account's SLH-DSA signature verified, so naming someone else's account
     // costs it nothing. A signed swap is public once submitted: replaying it is not charged again.
     const digest = signingHash(tx);

@@ -17,6 +17,7 @@ import { ApiFailure } from "./http.js";
 import type { Deployment, Rpc } from "./manifest.js";
 
 export const MAX_DEADLINE_SECONDS = 3600;
+export { reject as rejectPolicy, okResult };
 /** Gas for the eth_call that runs the on-chain SLH-DSA verifier (~1.1M used). */
 const VERIFY_CALL_GAS = "0x989680";
 
@@ -46,9 +47,11 @@ function checkFrame(frame: Frame, index: number, expected: { mode: number; flags
   if (frame.data.toLowerCase() !== expected.data) reject(`Frame ${index} calldata must be ${expected.data === "0x" ? "empty" : expected.data}.`);
 }
 
-/** Static template checks (no network). Returns the parsed swap intent. */
-export function checkTemplate(tx: FrameTx, ctx: Omit<PolicyContext, "rpc" | "reserve">): ParsedSwap {
-  const { deployment, sponsor } = ctx;
+/**
+ * The envelope every sponsored template shares: chain, linear nonce key, no blobs or roots, the exact
+ * fees, `frames` frames starting with the account and sponsor VERIFY frames, and the two signature entries.
+ */
+export function checkEnvelope(tx: FrameTx, deployment: Pick<Deployment, "chainId">, sponsor: Address, frames: number): void {
   if (tx.chainId !== BigInt(deployment.chainId)) reject(`chainId must be ${deployment.chainId}.`);
   if (tx.nonceKeys.length !== 1 || tx.nonceKeys[0] !== 0n) reject("nonceKeys must be [0] (the account's linear nonce).");
   if (tx.blobVersionedHashes.length > 0 || tx.recentRootReferences.length > 0) reject("Blob hashes and recent root references must be empty.");
@@ -56,7 +59,7 @@ export function checkTemplate(tx: FrameTx, ctx: Omit<PolicyContext, "rpc" | "res
   if (fees.maxPriorityFeePerGas !== FEES.maxPriorityFeePerGas || fees.maxFeePerGas !== FEES.maxFeePerGas || fees.maxFeePerBlobGas !== FEES.maxFeePerBlobGas) {
     reject(`Fees must be exactly ${FEES.maxPriorityFeePerGas} / ${FEES.maxFeePerGas} / ${FEES.maxFeePerBlobGas} wei per gas.`);
   }
-  if (tx.frames.length !== 5) reject(`Expected exactly 5 frames, got ${tx.frames.length}.`);
+  if (tx.frames.length !== frames) reject(`Expected exactly ${frames} frames, got ${tx.frames.length}.`);
   const [verify, pay] = tx.frames as [Frame, Frame];
   checkFrame(verify, 0, { mode: FRAME_MODE.VERIFY, flags: 2, target: tx.sender, limits: FRAME_LIMITS.accountVerify, data: VALIDATE_FRAME_SELECTOR, what: "the account VERIFY frame" });
   checkFrame(pay, 1, { mode: FRAME_MODE.VERIFY, flags: 1, target: sponsor, limits: FRAME_LIMITS.sponsorVerify, data: "0x", what: "the sponsor VERIFY frame" });
@@ -68,6 +71,12 @@ export function checkTemplate(tx: FrameTx, ctx: Omit<PolicyContext, "rpc" | "res
   if (sp.scheme !== SIGNATURE_SCHEME.SECP256K1 || !same(sp.signer, sponsor) || sp.msg !== "0x" || byteLength(sp.signature) !== SPONSOR_SIGNATURE_BYTES) {
     reject(`Signature 1 must be a ${SPONSOR_SIGNATURE_BYTES}-byte SECP256K1 placeholder for sponsor ${sponsor} with empty msg.`);
   }
+}
+
+/** Static template checks (no network). Returns the parsed swap intent. */
+export function checkTemplate(tx: FrameTx, ctx: Omit<PolicyContext, "rpc" | "reserve">): ParsedSwap {
+  const { deployment, sponsor } = ctx;
+  checkEnvelope(tx, deployment, sponsor, 5);
   let parsed: ParsedSwap;
   try {
     parsed = parseSwapTx(tx, deployment);
@@ -120,15 +129,25 @@ export async function checkSponsorPolicy(tx: FrameTx, ctx: PolicyContext): Promi
   if (parsed.deadline <= timestamp || parsed.deadline > timestamp + BigInt(MAX_DEADLINE_SECONDS)) {
     reject(`The deadline must be after the latest block time (${timestamp}) and at most ${MAX_DEADLINE_SECONDS} s ahead.`);
   }
+  checkSponsorFunds(tx, BigInt(okResult(balance, "the sponsor balance") as Hex), ctx.reserve);
+  await verifyAccountSignature(tx, contracts, ctx.rpc);
+  return parsed;
+}
+
+/** The sponsor must hold the transaction's worst-case fee plus its reserve. */
+export function checkSponsorFunds(tx: FrameTx, sponsorBalance: bigint, reserve: bigint): void {
   const worstCaseFee = totalFrameGasLimit(tx) * tx.fees.maxFeePerGas;
-  if (BigInt(okResult(balance, "the sponsor balance") as Hex) < worstCaseFee + ctx.reserve) {
+  if (sponsorBalance < worstCaseFee + reserve) {
     throw new ApiFailure(503, "operator_unavailable", "The sponsor is low on gas funds. Please try again later.");
   }
+}
 
+/** Verify the account's SLH-DSA signature over the signing hash on-chain, with the deployment's verifier. */
+export async function verifyAccountSignature(tx: FrameTx, contracts: Pick<Deployment["contracts"], "verifier">, rpc: Rpc): Promise<void> {
   const publicKey = decodeFunctionResult({
     abi: accountAbi,
     functionName: "publicKey",
-    data: await ctx.rpc.call<Hex>("eth_call", [{ to: tx.sender, data: encodeFunctionData({ abi: accountAbi, functionName: "publicKey" }) }, "latest"]),
+    data: await rpc.call<Hex>("eth_call", [{ to: tx.sender, data: encodeFunctionData({ abi: accountAbi, functionName: "publicKey" }) }, "latest"]),
   });
   const verifyData = encodeFunctionData({
     abi: verifierAbi,
@@ -138,8 +157,7 @@ export async function checkSponsorPolicy(tx: FrameTx, ctx: PolicyContext): Promi
   const valid = decodeFunctionResult({
     abi: verifierAbi,
     functionName: "verify",
-    data: await ctx.rpc.call<Hex>("eth_call", [{ to: contracts.verifier, data: verifyData, gas: VERIFY_CALL_GAS }, "latest"]),
+    data: await rpc.call<Hex>("eth_call", [{ to: contracts.verifier, data: verifyData, gas: VERIFY_CALL_GAS }, "latest"]),
   });
   if (!valid) throw new ApiFailure(422, "invalid_signature", "The SLH-DSA signature does not verify for this account's public key and transaction.");
-  return parsed;
 }

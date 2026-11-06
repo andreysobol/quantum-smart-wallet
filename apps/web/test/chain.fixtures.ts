@@ -43,4 +43,5 @@ export const CONFIG: PublicConfig = {
   faucet: { enabled: true, amount: "1000000000", symbol: "dUSDC", decimals: 6 },
   limits: { maxAmountInUsdc: "1000000000", maxAmountInWeth: "500000000000000000", maxDeadlineSeconds: 3600 },
   fees: { maxPriorityFeePerGas: "1000000000", maxFeePerGas: "2000000000" },
+  ens: null,
 };

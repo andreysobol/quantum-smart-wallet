@@ -19,3 +19,7 @@
 [submodule "slhsol/lib/v2-core"]
 	path = slhsol/lib/v2-core
 	url = https://github.com/Uniswap/v2-core.git
+[submodule "ensv2/lib/contracts-v2"]
+	path = ensv2/lib/contracts-v2
+	url = https://github.com/ensdomains/contracts-v2.git
+	update = none

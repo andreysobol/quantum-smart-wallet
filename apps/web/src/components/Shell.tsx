@@ -1,6 +1,7 @@
 import { CHAIN_ID } from "../../shared/constants.js";
 import { explorerAddressUrl, explorerBase } from "../chain/explorer.js";
 import { fibers, short } from "../design/helpers.js";
+import { useWalletName } from "../state/names.js";
 import { useWallet } from "../state/wallet.js";
 import { copyLabel, ManualCopy, useCopy } from "./CopyButton.js";
 import { accountSeed, cx, Seal } from "./Seal.js";
@@ -28,6 +29,7 @@ export function Header() {
   const { wallet, config, screen, go, onboarded } = useWallet();
   const [copyState, copy] = useCopy();
   const account = onboarded ? wallet : null;
+  const name = useWalletName(config, account?.account);
 
   const goHome = () => {
     if (screen === "engrave") return;
@@ -60,6 +62,11 @@ export function Header() {
           <button className={cx("nb", screen === "exchange" && "on")} onClick={() => go("exchange")}>
             Exchange
           </button>
+          {config?.ens && (
+            <button className={cx("nb", screen === "names" && "on")} onClick={() => go("names")}>
+              Names
+            </button>
+          )}
         </nav>
       )}
       <div className="barR">
@@ -80,18 +87,18 @@ export function Header() {
           <button
             type="button"
             className="acct"
-            title={account.account}
+            title={name ? `${name} · ${account.account}` : account.account}
             onClick={() => copy(account.account)}
             aria-label={
               copyState === "copied"
                 ? "Address copied"
                 : copyState === "failed"
                   ? `Copy failed. Address ${account.account}`
-                  : `Copy address ${account.account}`
+                  : `Copy address ${account.account}${name ? ` (${name})` : ""}`
             }
           >
             <Seal seed={accountSeed(account.publicKey)} lite size={30} />
-            <span className="mono">{copyState === "idle" ? short(account.account) : copyLabel(copyState, "")}</span>
+            <span className="mono">{copyState === "idle" ? (name ?? short(account.account)) : copyLabel(copyState, "")}</span>
           </button>
         )}
         {account && copyState === "failed" && <ManualCopy text={account.account} />}

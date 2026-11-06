@@ -73,7 +73,7 @@ input.amt{min-height:44px}
   .barR{flex-wrap:nowrap;gap:6px;min-width:0;margin-left:auto}
   .net{padding:0 8px;min-width:44px;justify-content:center}
   .net .net-t{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-  .nav{position:fixed;left:0;right:0;bottom:0;z-index:20;display:grid;grid-template-columns:1fr 1fr;gap:0;background:var(--paper);border-top:1px solid var(--rule2);padding:0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+  .nav{position:fixed;left:0;right:0;bottom:0;z-index:20;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:0;background:var(--paper);border-top:1px solid var(--rule2);padding:0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
   .nb{min-height:56px;padding:0}
   .nb.on::after{top:0;bottom:auto;left:28%;right:28%}
   .qs:has(.nav){padding-bottom:calc(57px + env(safe-area-inset-bottom))}
