@@ -6,13 +6,18 @@ const ROUTES = new Set(["config", "account", "faucet", "sponsor"]);
 type Handler = (request: Request) => Promise<Response> | Response;
 type LoadModule = (path: string) => Promise<Record<string, unknown>>;
 
-function toRequest(req: IncomingMessage): Request {
+/**
+ * Node request -> Web Request. The client IP (rate-limit key) comes from the socket only: Vercel's
+ * edge overwrites these headers, and a dev or preview server must not trust client-sent ones either.
+ */
+export function toRequest(req: IncomingMessage): Request {
   const headers = new Headers();
   for (const [name, value] of Object.entries(req.headers)) {
     if (Array.isArray(value)) value.forEach((v) => headers.append(name, v));
     else if (value !== undefined) headers.set(name, value);
   }
-  if (!headers.has("x-forwarded-for") && req.socket.remoteAddress) headers.set("x-forwarded-for", req.socket.remoteAddress);
+  for (const name of ["x-real-ip", "x-forwarded-for", "x-vercel-forwarded-for"]) headers.delete(name);
+  if (req.socket.remoteAddress) headers.set("x-real-ip", req.socket.remoteAddress);
   const method = req.method ?? "GET";
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
   const init: RequestInit & { duplex?: "half" } = { method, headers };
