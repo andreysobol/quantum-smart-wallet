@@ -64,6 +64,11 @@ QSW_LIVE_READ=1 npm test       # adds read-only checks against the public devnet
 npm run e2e                    # Playwright, Chromium: WASM signer in a worker, backup round trip, and the app
 ```
 
+`e2e/responsive.spec.ts` drives 12 screen states through 9 viewports (wide desktop to 320 px, short laptop
+windows, landscape phone, 200% zoom) and fails on horizontal overflow, a primary action outside the first
+viewport, or touch targets under 44 px on phones; `QSW_SHOTS_DIR=<dir>` also saves screenshots. The adaptive
+rules live in `src/design/responsive.css`, layered over the verbatim design CSS.
+
 The app e2e (`e2e/app.spec.ts`) starts `vite` on port 4173 with the operator keys forced empty, then checks
 onboarding (account creation is mocked in the browser), the backup check, restore, and the read-only Portfolio,
 Exchange and Proof screens for the demo account. It reads the public devnet but never sends a transaction.
