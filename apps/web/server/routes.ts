@@ -33,6 +33,7 @@ export function publicConfig(ctx: ServerContext, d: Deployment): PublicConfig {
       maxDeadlineSeconds: MAX_DEADLINE_SECONDS,
     },
     fees: { maxPriorityFeePerGas: FEES.maxPriorityFeePerGas.toString(), maxFeePerGas: FEES.maxFeePerGas.toString() },
+    ens: d.ens,
   };
 }
 

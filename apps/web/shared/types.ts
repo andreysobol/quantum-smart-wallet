@@ -81,6 +81,8 @@ export interface PublicConfig {
   limits: { maxAmountInUsdc: string; maxAmountInWeth: string; maxDeadlineSeconds: number };
   /** Fee caps the sponsor signs, wei per gas as decimal strings. */
   fees: { maxPriorityFeePerGas: string; maxFeePerGas: string };
+  /** Devnet ENSv2; null when the manifest has no ENS section or it did not verify on-chain. */
+  ens: EnsDeployment | null;
 }
 
 export interface ApiErrorBody {

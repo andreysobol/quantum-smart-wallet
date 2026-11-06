@@ -2,7 +2,7 @@ import { decodeFunctionResult, encodeAbiParameters, encodeFunctionData, getAddre
 import { factoryAbi } from "../shared/abis.js";
 import { CHAIN_ID, NATIVE_PROFILE } from "../shared/constants.js";
 import { rpcBatch, rpcCall, type BatchItem, type BatchResult } from "../shared/rpc.js";
-import type { Address, DeploymentContracts, Hex, PoolKey } from "../shared/types.js";
+import type { Address, DeploymentContracts, EnsDeployment, Hex, PoolKey } from "../shared/types.js";
 import { ApiFailure } from "./http.js";
 
 /** JSON-RPC access, injectable so policy and routes are testable without a network. */
@@ -36,6 +36,8 @@ export interface Deployment {
   poolId: Hex;
   /** INITIAL_STAKE read from the factory on-chain. */
   accountInitialStake: bigint;
+  /** The Devnet ENSv2 namespace, verified on-chain; null when absent or unverified. */
+  ens: EnsDeployment | null;
 }
 
 const bad = (message: string): never => {
@@ -77,7 +79,7 @@ export function computePoolId(key: PoolKey): Hex {
 export function parseManifest(
   json: unknown,
   overrides: { rpcUrl?: string | null; mempoolUrl?: string | null; genesisHash?: Hex | null } = {},
-): Omit<Deployment, "accountInitialStake"> {
+): Omit<Deployment, "accountInitialStake" | "ens"> {
   if (typeof json !== "object" || json === null || Array.isArray(json)) return bad("not an object");
   const m = json as Record<string, unknown>;
   if (m.chainId !== CHAIN_ID) bad(`chainId must be ${CHAIN_ID}`);
@@ -139,7 +141,7 @@ export interface ChainVerifier {
  * Verify the RPC really is the manifest's chain (chain id, genesis, pinned ethrex
  * profile), the mempool is on the same chain, and read INITIAL_STAKE.
  */
-export async function verifyChain(base: Omit<Deployment, "accountInitialStake">, { rpc, mempool }: ChainVerifier): Promise<Deployment> {
+export async function verifyChain(base: Omit<Deployment, "accountInitialStake" | "ens">, { rpc, mempool }: ChainVerifier): Promise<Deployment> {
   const [chainId, genesis, version, stake] = await rpc.batch([
     { method: "eth_chainId" },
     { method: "eth_getBlockByNumber", params: ["0x0", false] },
@@ -159,5 +161,5 @@ export async function verifyChain(base: Omit<Deployment, "accountInitialStake">,
   const initialStake = decodeFunctionResult({ abi: factoryAbi, functionName: "INITIAL_STAKE", data: stake.result as Hex });
   const mempoolChain = await mempool.call<string>("eth_chainId");
   if (Number(mempoolChain) !== base.chainId) wrong(`The mempool endpoint is not chain ${base.chainId}.`);
-  return { ...base, accountInitialStake: initialStake };
+  return { ...base, accountInitialStake: initialStake, ens: null };
 }
