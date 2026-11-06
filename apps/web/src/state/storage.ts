@@ -1,4 +1,5 @@
 import { isPublicKey } from "../../shared/account.js";
+import type { Hex } from "../../shared/types.js";
 import type { WalletRecord } from "./types.js";
 
 export const WALLET_STORAGE_KEY = "qsw.wallet.v1";
@@ -34,23 +35,53 @@ export function parseWalletRecord(value: unknown): WalletRecord | null {
   };
 }
 
-export function loadWalletRecord(storage: Pick<Storage, "getItem"> | undefined = globalThis.localStorage): WalletRecord | null {
+// `storage` defaults to localStorage inside the try: merely reading window.localStorage throws a
+// SecurityError when the browser blocks site data, and a default parameter would throw before the try.
+
+export function loadWalletRecord(storage?: Pick<Storage, "getItem">): WalletRecord | null {
   try {
-    const raw = storage?.getItem(WALLET_STORAGE_KEY);
+    const raw = (storage ?? globalThis.localStorage)?.getItem(WALLET_STORAGE_KEY);
     return raw ? parseWalletRecord(JSON.parse(raw)) : null;
   } catch {
     return null;
   }
 }
 
-export function saveWalletRecord(
-  record: WalletRecord | null,
-  storage: Pick<Storage, "setItem" | "removeItem"> | undefined = globalThis.localStorage,
-): void {
+export function saveWalletRecord(record: WalletRecord | null, storage?: Pick<Storage, "setItem" | "removeItem">): void {
   try {
-    if (record) storage?.setItem(WALLET_STORAGE_KEY, JSON.stringify(record));
-    else storage?.removeItem(WALLET_STORAGE_KEY);
+    const target = storage ?? globalThis.localStorage;
+    if (record) target?.setItem(WALLET_STORAGE_KEY, JSON.stringify(record));
+    else target?.removeItem(WALLET_STORAGE_KEY);
   } catch {
-    // Storage full or disabled (private mode): the wallet still works for this session.
+    // Storage full, disabled or blocked: the wallet still works for this session.
   }
+}
+
+const sameKey = (a: Hex, b: Hex) => a.toLowerCase() === b.toLowerCase();
+
+/**
+ * The stored wallet that saving a wallet for `publicKey` would replace (null for a new key that is not
+ * known yet), or null when nothing would be lost. The app keeps one wallet record per device, so
+ * replacing a different one needs the user's explicit consent.
+ */
+export function walletToReplace(stored: WalletRecord | null, publicKey: Hex | null): WalletRecord | null {
+  return stored && !(publicKey && sameKey(stored.publicKey, publicKey)) ? stored : null;
+}
+
+export type CommitResult = { saved: true } | { saved: false; current: WalletRecord };
+
+/**
+ * Compare-and-set save: re-read storage and refuse (returning the stored wallet) when it holds a different
+ * key than `next`, unless that key is `replaces`, the wallet the user agreed to replace. Another tab may
+ * have saved a wallet since this one last looked; overwriting it would leave that wallet's key unreachable.
+ */
+export function commitWalletRecord(
+  next: WalletRecord,
+  replaces: Hex | null,
+  storage?: Pick<Storage, "getItem" | "setItem" | "removeItem">,
+): CommitResult {
+  const current = walletToReplace(loadWalletRecord(storage), next.publicKey);
+  if (current && !(replaces && sameKey(current.publicKey, replaces))) return { saved: false, current };
+  saveWalletRecord(next, storage);
+  return { saved: true };
 }
