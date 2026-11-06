@@ -142,11 +142,10 @@ export function Exchange() {
 
   return (
     <section className="scr" aria-labelledby="x-h">
-      <div className="head">
-        <h2 className="s-h" id="x-h">
-          Exchange
-        </h2>
-      </div>
+      {/* The header tab already names the page; keep the heading for screen readers only. */}
+      <h2 className="vh" id="x-h">
+        Exchange
+      </h2>
       <div className="x-grid">
         <div className="slip">
           <div className="half">
