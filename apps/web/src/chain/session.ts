@@ -23,6 +23,8 @@ export interface LiveSwap {
   txHash: Hex | null;
   result: SwapReport | null;
   error: string | null;
+  /** Failed without a known outcome: the transaction may still be included. */
+  unresolved: boolean;
   running: boolean;
 }
 
@@ -75,6 +77,7 @@ export function startSwap(config: PublicConfig, wallet: WalletRecord, signer: Si
     txHash: null,
     result: null,
     error: null,
+    unresolved: false,
     running: true,
   };
   publish({ live, view: { kind: "live", id } });
@@ -96,6 +99,7 @@ export function startSwap(config: PublicConfig, wallet: WalletRecord, signer: Si
       patchLive(id, {
         running: false,
         error: error instanceof Error ? error.message : "The swap failed.",
+        unresolved: swapError?.unresolved ?? false,
         result: swapError?.result ?? null,
         ...(swapError?.txHash ? { txHash: swapError.txHash } : {}),
       });

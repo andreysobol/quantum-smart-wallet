@@ -34,6 +34,16 @@ import type { FrameView, SwapInput, SwapProgress, SwapResult, SwapStage } from "
 
 export const DEADLINE_SECONDS = 1800n;
 export const INCLUSION_TIMEOUT_MS = 180_000;
+/** How long to look a submission up by hash when the mempool's answer to it was lost. */
+export const RECONCILE_TIMEOUT_MS = 60_000;
+
+/**
+ * JSON-RPC codes that prove the transaction was not taken: the sidecar's validation refusals
+ * (-32602, -32600, -32500, -32502, -32504, -32507, -32521) and the gateway's refusals before
+ * forwarding (-32601, -32700, -32005). Anything else, such as a timeout, a dropped connection or
+ * the gateway's -32002 after forwarding, may have lost the answer to an accepted submission.
+ */
+const REFUSAL_CODES = new Set([-32602, -32600, -32500, -32502, -32504, -32507, -32521, -32601, -32700, -32005]);
 
 /** SwapResult plus the facts the proof receipt shows. */
 export interface SwapReport extends SwapResult {
@@ -50,6 +60,8 @@ export class SwapError extends Error {
     message: string,
     public readonly txHash?: Hex,
     public readonly result?: SwapReport,
+    /** The transaction may still be included (its outcome is unknown), so a new swap must not be invited. */
+    public readonly unresolved = false,
   ) {
     super(message);
     this.name = "SwapError";
@@ -194,6 +206,32 @@ async function waitForAdmission(
   }
 }
 
+/**
+ * What the sidecar (admission record, mempool entry) and the chain (receipt) know about a
+ * transaction right now. `seen`: the mempool took it or a block holds it. A failed lookup
+ * counts as not knowing.
+ */
+async function lookUpTransaction(
+  config: SwapConfig,
+  hash: Hex,
+  signal?: AbortSignal,
+): Promise<{ seen: boolean; admission: AdmissionSummary | null }> {
+  const quiet = <T>(request: Promise<T>): Promise<T | null> =>
+    request.catch((error: unknown) => {
+      if (signal?.aborted) throw error;
+      return null;
+    });
+  const options = { signal, timeoutMs: 15_000 };
+  const [admission, entry, receipt] = await Promise.all([
+    fetchAdmission(config, hash, signal),
+    quiet(rpcCall<{ status?: unknown } | null>(config.mempoolUrl, "skandha_frameTransactionStatus", [hash], options)),
+    quiet(rpcCall<RawReceipt | null>(config.rpcUrl, "eth_getTransactionReceipt", [hash], options)),
+  ]);
+  if (receipt) return { seen: true, admission };
+  if (admission?.outcome === "rejected") return { seen: false, admission };
+  return { seen: !!admission || typeof entry?.status === "string", admission };
+}
+
 const DEAD_STATUSES = new Set(["Cancelled", "Reverted"]);
 
 async function waitForReceipt(config: SwapConfig, hash: Hex, signal?: AbortSignal): Promise<RawReceipt> {
@@ -230,6 +268,8 @@ async function waitForReceipt(config: SwapConfig, hash: Hex, signal?: AbortSigna
     "inclusion",
     "The transaction was not included within 3 minutes. It may still land: check it on the explorer before retrying.",
     hash,
+    undefined,
+    true,
   );
 }
 
@@ -399,8 +439,28 @@ export async function runSwap(
       if (error instanceof SwapError || signal?.aborted) throw error;
       const message = error instanceof Error ? error.message : String(error);
       if (!(error instanceof RpcError && /already known/i.test(message))) {
-        const admission = await fetchAdmission(config, hash, signal);
-        fail(admission?.outcome === "rejected" ? describeRejection(admission) : describeMempoolError(message));
+        // Only a JSON-RPC refusal proves the mempool did not take it. Otherwise the answer may be all
+        // that was lost: look the transaction up by its hash before failing, and while it may still
+        // land, report an unknown status rather than a rejection that would invite a second swap.
+        const refused = error instanceof RpcError && error.method !== "fetch" && REFUSAL_CODES.has(error.code);
+        if (!refused) emit("active", "No answer from the mempool: looking the transaction up by its hash");
+        const end = Date.now() + (refused ? 0 : RECONCILE_TIMEOUT_MS);
+        for (;;) {
+          const found = await lookUpTransaction(config, hash, signal);
+          if (found.seen) break;
+          if (found.admission?.outcome === "rejected") fail(describeRejection(found.admission));
+          if (refused) fail(describeMempoolError(message));
+          if (Date.now() >= end) {
+            throw new SwapError(
+              stage,
+              `The mempool's answer was lost (${message}), so this swap's status is unknown. It may still be included: check the transaction on the explorer before trying again.`,
+              hash,
+              undefined,
+              true,
+            );
+          }
+          await sleep(2_000, signal);
+        }
       }
     }
     emit("done", "Accepted by the mempool");
