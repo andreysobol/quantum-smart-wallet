@@ -54,6 +54,22 @@ provides liquidity, mints demo input tokens and sponsors the later swap. Set
 with fields `address` and `private_key` (both `0x`-prefixed). Do not generate a
 replacement operator key after prefunding the sealed genesis.
 
+The canonical local location is `.secrets/devnet-operator.json` in the repository
+checkout. Keep the directory mode `0700` and the file mode `0600`. This directory
+is excluded from Git, Docker build contexts and Vercel CLI uploads. It is local
+state and is not restored by cloning the repository; retain a separate private
+backup of this existing key.
+
+From the repository root, point the operator scripts at it:
+
+```sh
+export QSW_DEPLOYER_KEY_FILE="$PWD/.secrets/devnet-operator.json"
+```
+
+For the web service, use the JSON's `private_key` value as the server-only
+`QSW_OPERATOR_PRIVATE_KEY` environment variable, locally and in Vercel. The local
+file path itself is not a Vercel credential.
+
 For a new stand, set `QSW_GENESIS_HASH` to the expected hash from the retained
 network record and run the sequential deployment wrapper from the repository root:
 

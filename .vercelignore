@@ -1,0 +1,7 @@
+.secrets/
+**/.secrets/
+**/.state/
+**/.generated/
+**/.env
+**/.env.*
+!**/.env.example
