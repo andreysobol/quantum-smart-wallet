@@ -1,8 +1,13 @@
 # Quantum Smart Wallet
 
-An Ethereum smart wallet using post-quantum signatures, onchain verification, and native account abstraction via EIP-8141.
+An Ethereum smart wallet using hash based post-quantum signatures, onchain verification, and native account abstraction via EIP-8141 and ERC-8421.
 
 > ⚠️ Research/educational code — not audited. Do not use it to protect real funds.
+>
+
+Imagine waking up tomorrow and discovering that the cryptography protecting your Ethereum wallet is broken. Your private key can be recovered. Your funds can be stolen. And your wallet cannot defend itself. We don't know when quantum computers will become powerful enough to make this possible. But we know the mathematics already.
+
+A native Ethereum wallet that replaces classical transaction authorization with SLH-DSA-SHA2-128s, a post-quantum signature algorithm standardized by NIST. Using EIP-8141 and ERC-8421, we demonstrate post-quantum transactions with native validation and alternative mempool support. You can send assets, trade tokens, and register ENS names, all authorized by post-quantum signatures.
 
 ## SLH-DSA-SHA2-128s
 
