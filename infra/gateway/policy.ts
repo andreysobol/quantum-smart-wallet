@@ -20,6 +20,28 @@ export const EL_METHODS = new Set([
   "eth_getTransactionReceipt", "eth_getLogs", "eth_sendRawTransaction",
 ]);
 
+export const EXPLORER_METHODS = new Set([
+  "qsw_explorerStatus", "qsw_explorerTransactions", "qsw_explorerTransaction",
+]);
+
+export function validateExplorerParams(method: string, params: unknown[]): void {
+  if (method === "qsw_explorerStatus") {
+    if (params.length === 0) return;
+  } else if (method === "qsw_explorerTransaction") {
+    if (params.length === 1 && typeof params[0] === "string" && /^0x[0-9a-fA-F]{64}$/.test(params[0])) return;
+  } else if (method === "qsw_explorerTransactions") {
+    const query = params[0];
+    if (params.length === 1 && isRecord(query) &&
+        Object.keys(query).every((key) => ["address", "before", "limit"].includes(key)) &&
+        (query.address === undefined || (typeof query.address === "string" && /^0x[0-9a-fA-F]{40}$/.test(query.address))) &&
+        (query.before === undefined || (typeof query.before === "number" && Number.isSafeInteger(query.before) && query.before > 0)) &&
+        (query.limit === undefined || (typeof query.limit === "number" && Number.isSafeInteger(query.limit) && query.limit >= 1 && query.limit <= 100))) return;
+  } else {
+    throw new RpcFault(-32601, "Unknown chain explorer method");
+  }
+  throw new RpcFault(-32602, "Invalid chain explorer parameters");
+}
+
 // Names are pinned to the sidecar's packages/api/src/constants.ts.
 export const MEMPOOL_METHODS = new Set([
   "eth_chainId", "web3_clientVersion", "eth_sendFrameTransaction",
@@ -81,8 +103,15 @@ export function validateHttpPayload(value: unknown, route: Route): RpcRequest | 
   const allowed = route === "rpc" ? EL_METHODS : MEMPOOL_METHODS;
   const validate = (item: unknown) => {
     const parsed = request(item);
-    if (!allowed.has(parsed.method)) {
+    if (!allowed.has(parsed.method) && !(route === "rpc" && EXPLORER_METHODS.has(parsed.method))) {
       throw new RpcFault(-32601, "Method is not available on this public endpoint", parsed.id, 403);
+    }
+    if (EXPLORER_METHODS.has(parsed.method)) {
+      try { validateExplorerParams(parsed.method, parsed.params); }
+      catch (error) {
+        if (error instanceof RpcFault) error.id = parsed.id;
+        throw error;
+      }
     }
     // Public calls cannot install state/block overrides.
     if ((parsed.method === "eth_call" || parsed.method === "eth_estimateGas") &&

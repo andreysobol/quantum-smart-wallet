@@ -79,3 +79,50 @@ The zone-wide browser check, other WAF controls and unrelated Access application
 stay enabled. Apply this narrow rule only with the zone owner's authorization;
 verify an ordinary JSON-RPC client and a browser WebSocket after deployment.
 The gateway's method, size, rate and subscription limits still apply.
+
+
+## Chain address history
+
+The gateway also indexes the internal execution RPC into persistent Bun SQLite at
+`/data/explorer.sqlite`, stored in the `gateway_data` volume. It reads chain data
+only; indexing makes no submissions or administrative calls. Restarting the
+gateway resumes the index. A changed chain ID or genesis hash clears old history.
+A detected reorg removes orphaned transactions and address associations; a reorg
+deeper than 64 blocks rebuilds the index from genesis.
+
+These methods are local to POST `/rpc`, with the existing batch and CORS policy:
+
+| Method | Parameters | Result |
+| --- | --- | --- |
+| `qsw_explorerStatus` | `[]` | `{chainId,genesisHash,indexedBlock,latestBlock,transactionCount,indexing,error,lastUpdated}` |
+| `qsw_explorerTransactions` | `[{address?,before?,limit?}]` | `{transactions,nextCursor}` |
+| `qsw_explorerTransaction` | `[transactionHash]` | `{transaction,receipt,block:{number,hash,timestamp}}` or `null` |
+
+`chainId` is a hex quantity; unavailable identity/block fields are null.
+`indexedBlock` and `latestBlock` are numbers. `lastUpdated` is the last successful
+poll time in seconds. Display `error` before an indexing indicator, and show
+partial history while the indexed height is below the latest observed height.
+An upstream failure keeps `indexing` true and exposes a sanitized retry message.
+
+List rows contain `hash,blockNumber,transactionIndex,timestamp,from,to,
+contractAddress,payer,type,status,gasUsed,value`. Heights, indexes, and timestamps
+are numbers. Other quantities are hex strings; missing addresses, status and gas
+are null. Native transactions use `sender` as their sender fallback and sum frame
+values when the envelope has no outer value. Details preserve the original EL
+transaction and receipt, including native `nonceKeys`, `nonceSeq`, and frames.
+
+History is labelled **transactions involving an address**. Participants include
+sender, destination, created contract, payer, frame targets, log emitters,
+Transfer event sender/recipient topics, and the account in the factory's known
+AccountCreated event. Calls visible only in internal execution traces are absent.
+
+`limit` defaults to 25 and must be an integer from 1 to 100. `before` is an opaque
+positive `nextCursor`; omit it for the newest page. Address pages range the
+participants index, without walking unrelated history. Public detail responses
+are rejected before parsing if stored JSON would exceed the 4 MiB response cap.
+
+Backfill handles at most 32 blocks per poll and 500 receipt transactions, allowing
+one larger block bounded at 5,000 transactions. There are at most four concurrent
+internal reads, 16 MiB per internal RPC response, and no overlapping polls.
+Receipt/block consistency is checked before each atomic block commit. Public API
+queries use only SQLite and never initiate chain backfill.

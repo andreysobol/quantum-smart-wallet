@@ -1,7 +1,8 @@
 import type { ServerWebSocket, WebSocketHandler } from "bun";
+import { ChainExplorer, createInternalChainRpc } from "./explorer";
 import {
   MAX_HTTP_BYTES, MAX_RESPONSE_BYTES, MAX_WS_BYTES, MAX_PENDING_MESSAGES, MAX_PENDING_BYTES,
-  RpcFault, errorResponse, isRecord, sanitizeResponse, validateHttpPayload, validateWsPayload,
+  RpcFault, EXPLORER_METHODS, errorResponse, isRecord, sanitizeResponse, validateHttpPayload, validateWsPayload,
   type RpcId, type RpcRequest,
 } from "./policy";
 
@@ -24,6 +25,7 @@ export type GatewayOptions = {
   elUrl: string;
   mempoolUrl: string;
   mempoolWsUrl: string;
+  explorer?: ChainExplorer;
 };
 
 type SocketState = {
@@ -83,6 +85,15 @@ export function createGateway(options: GatewayOptions) {
   let inFlight = 0;
 
   async function forward(request: RpcRequest, url: string) {
+    if (EXPLORER_METHODS.has(request.method)) {
+      if (!options.explorer) return errorResponse(new RpcFault(-32004, "Chain explorer is not enabled", request.id, 503));
+      try {
+        return { jsonrpc: "2.0", id: request.id, result: options.explorer.handle(request.method, request.params) };
+      } catch (error) {
+        if (error instanceof RpcFault) error.id = request.id;
+        return errorResponse(error, request.id);
+      }
+    }
     if (inFlight >= MAX_IN_FLIGHT) {
       return errorResponse(new RpcFault(-32005, "Gateway is busy; retry shortly", request.id, 503));
     }
@@ -272,11 +283,26 @@ export function createGateway(options: GatewayOptions) {
 }
 
 if (import.meta.main) {
+  const elUrl = process.env.EL_RPC_URL ?? "http://ethrex:8545";
+  const explorer = new ChainExplorer({
+    rpc: createInternalChainRpc(elUrl),
+    path: process.env.EXPLORER_DB_PATH ?? "/data/explorer.sqlite",
+  });
   const server = createGateway({
-    port: Number(process.env.PORT ?? 8080),
-    elUrl: process.env.EL_RPC_URL ?? "http://ethrex:8545",
+    port: Number(process.env.PORT ?? 8080), elUrl, explorer,
     mempoolUrl: process.env.MEMPOOL_RPC_URL ?? "http://sidecar:14337/rpc/",
     mempoolWsUrl: process.env.MEMPOOL_WS_URL ?? "ws://sidecar:14337/rpc/",
   });
+  explorer.start();
+  let stopping = false;
+  const shutdown = async () => {
+    if (stopping) return;
+    stopping = true;
+    server.stop(true);
+    await explorer.close();
+    process.exit(0);
+  };
+  process.on("SIGTERM", shutdown);
+  process.on("SIGINT", shutdown);
   console.log("Public RPC gateway listening on port " + server.port);
 }

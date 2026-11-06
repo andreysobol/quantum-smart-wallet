@@ -278,3 +278,32 @@ test("explicit allowlists reject private families and signing on both HTTP route
     expect(() => validateHttpPayload(rpc(method), route)).toThrow(RpcFault);
   }
 });
+
+
+test("serves chain explorer requests locally and rejects invalid mixed batches before forwarding", async () => {
+  const { ChainExplorer } = await import("./explorer");
+  const index = new ChainExplorer({ rpc: async () => { throw new Error("No indexing requested in this routing test"); } });
+  const local = createGateway({
+    port: 0, hostname: "127.0.0.1", explorer: index,
+    elUrl: upstream.url + "el", mempoolUrl: upstream.url + "rpc/",
+    mempoolWsUrl: upstream.url.toString().replace("http:", "ws:") + "rpc/",
+  });
+  const call = (body: unknown) => fetch(new URL("/rpc", local.url), {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+  try {
+    const response = await call(rpc("qsw_explorerStatus"));
+    expect(response.status).toBe(200);
+    expect((await response.json() as any).result).toMatchObject({
+      chainId: null, indexedBlock: null, transactionCount: 0, indexing: true, error: null,
+    });
+    expect(received).toHaveLength(0);
+    const rejected = await call([
+      rpc("eth_sendRawTransaction", ["0xdead"], 1),
+      rpc("qsw_explorerTransactions", [{ limit: 101 }], 2),
+    ]);
+    expect(rejected.status).toBe(400);
+    expect((await rejected.json() as any).error).toMatchObject({ code: -32602 });
+    expect(received).toHaveLength(0);
+  } finally { local.stop(true); await index.close(); }
+});
