@@ -1,95 +1,62 @@
-# Devnet ENSv2 — qsw.eth
+# ENSv2 names for Quantum Smart Wallet
 
-**Devnet ENSv2** names for QuantumAccounts on the shared devnet (chain 81411338), registered as
-`<label>.qsw.eth` and paid in dUSDC. These names live only on this devnet. They do not reserve public
-`.eth` names and do not establish ENS-prize eligibility.
+Register `<name>.qsw.eth` with a post-quantum smart account. Names cost **5 dUSDC per year**; the sponsor pays transaction gas.
 
-Built on the official [`ensdomains/contracts-v2`](https://github.com/ensdomains/contracts-v2), pinned in
-`lib/contracts-v2` at tag `v2-mainnet-deployment-1` (`62778d80038e50cb23514eab1b7d66ceb8a41e1c`). The ENSv2
-contracts are deployed unmodified.
-
-## Why names are held by a vault
-
-ENSv2 registries mint names as ERC-1155 tokens. `ERC1155Singleton._mint` calls `onERC1155Received` on contract
-owners and reverts with `ERC1155InvalidReceiver` when the owner does not implement it. `QuantumAccount` has
-no receiver hooks and no fallback, so a name minted to it always reverts. `test/ENSVault.t.sol` reproduces
-this with the real account contract, and the live account reverts on the call.
-
-Instead of replacing the deployed wallet contracts, each account gets an **ENSVault**:
-
-- **Token owner:** the vault holds the name tokens and implements the ERC-1155/ERC-721 receiver hooks and
-  ERC-165.
-- **Controller:** the QuantumAccount. Only it can call `execute(target, data)`, from a SENDER frame of its own
-  PQ-validated transaction. The vault has no owner, operator role, upgrade or recovery path.
-- **Resolver:** the vault deploys its own official `PermissionedResolver` proxy through `VerifiableFactory`
-  and holds every role on it. A name's records therefore change only through its controller.
-- **Vault factory:** `ENSVaultFactory` gives each factory-created account exactly one vault at a
-  deterministic CREATE2 address. Creating a vault is permissionless and idempotent; the controller is fixed
-  by the address.
-
-Forward resolution points each name at the QuantumAccount: `addr(node)` is set to the account through
-`UniversalResolverV2`.
+Runs on the shared devnet, chain **81411338**.
 
 ## Contracts
 
-| Contract | Source |
+Three contracts implement the wallet integration:
+
+| Contract | Purpose |
 |---|---|
-| Root, `.eth` and `qsw.eth` registries | official `PermissionedRegistry` |
-| ContractNamer (UUPS), LabelStore, VerifiableFactory, GatewayProvider, UniversalResolverV2 | official |
-| Per-vault resolver | official `PermissionedResolver` proxy |
-| `SimpleSubnameRegistrar` | the ENSv2 contract-developer tutorial's minimal ERC20 registrar: 5 dUSDC per year, at least 1 year, no commit-reveal |
-| `ENSVault`, `ENSVaultFactory` | this repository |
+| [ENSVault](src/ENSVault.sol) | Holds name tokens and controls their resolver. Only its QuantumAccount controller can execute calls through it. |
+| [ENSVaultFactory](src/ENSVaultFactory.sol) | Creates one deterministic vault per account registered with our QuantumAccountFactory. |
+| [SimpleSubnameRegistrar](src/SimpleSubnameRegistrar.sol) | Registers and renews `qsw.eth` subnames for dUSDC. Adapted from the ENSv2 ERC-20 registrar tutorial. |
 
-**What the operator can and cannot do.** The operator owns the devnet root and `.eth`. On `qsw.eth` it can
-only add registrars and renewers. It holds no role that can unregister or take a name. The `qsw` token in
-`.eth` carries no roles, so the namespace's registry and resolver stay as deployed. Registration fees go to
-the operator.
+The registries, resolver implementation, UniversalResolverV2 and supporting contracts come from official [ENSv2 contracts](https://github.com/ensdomains/contracts-v2/tree/62778d80038e50cb23514eab1b7d66ceb8a41e1c), deployed without source changes. The dependency is pinned to `v2-mainnet-deployment-1`.
 
-## Registration
+### Why a vault?
 
-One EIP-8141 frame transaction: the account's SLH-DSA VERIFY frame and the sponsor's VERIFY frame, then
-one atomic batch:
+ENSv2 names are ERC-1155 tokens. The deployed QuantumAccount does not implement the receiver callback required to accept them.
 
-1. `ENSVaultFactory.createVault(account)`, idempotent
-2. `dUSDC.approve(registrar, price)`
-3. `registrar.register(label, vault, resolver, duration)`
-4. `vault.execute(resolver, setAddress(name, 60, account))`
+Each account therefore controls a vault that accepts the tokens:
 
-The web app builds it (`apps/web/shared/ens.ts`). The sponsor co-signs it only after checking:
+- **Name owner:** ENSVault.
+- **Vault controller:** QuantumAccount.
+- **Resolved address:** QuantumAccount.
 
-- every byte matches this template
-- the account was created by the factory and the nonce is current
-- the vault and resolver are the account's own
-- the label is normalized and still available
-- the duration is 1–5 whole years
-- the payment equals `getPrice(duration)`
-- the account holds enough dUSDC
-- the SLH-DSA signature verifies on chain
+The vault also controls its own official PermissionedResolver proxy. It has no separate operator or recovery key.
 
-## Build, test, deploy
+## Registration flow
 
-```sh
-git submodule update --init --checkout --depth 1 slhsol/ensv2/lib/contracts-v2   # skipped by recursive updates
-for m in openzeppelin-contracts openzeppelin-contracts-upgradeable ens-contracts verifiable-factory forge-std buffer solsha1 openzeppelin-contracts-v4; do
-  git -C slhsol/ensv2/lib/contracts-v2 submodule update --init --depth 1 contracts/lib/$m
-done
-cd slhsol/ensv2 && forge test
-npm ci && QSW_DEPLOYER_KEY_FILE=../../.secrets/devnet-operator.json npm run deploy
-```
+The browser signs with SLH-DSA through WASM. One sponsored **EIP-8141** transaction contains two verification frames and four execution frames:
 
-The deploy script mirrors the official `V2Fixture` wiring and uses the devnet's own `eth_estimateGas`: its
-state gas is not modelled by Forge, and contract creation needs up to about 28M gas. It resumes from
-`deployments/shared-devnet.json` and reads the namespace back before writing the `ens` section of
-`slhsol/deployments/shared-devnet.json`.
+1. Verify the account’s post-quantum signature.
+2. Verify the sponsor’s gas authorization.
+3. Create the account’s vault if needed.
+4. Approve the exact dUSDC registration fee.
+5. Register the name to the vault.
+6. Set the name’s Ethereum address record to the QuantumAccount.
 
-**Publishing.** That file is the source of the published manifest, so copy it to the gateway host's
-`DEPLOYMENT_MANIFEST` to serve the namespace. Until then, the web server uses an identical bundled copy
-(`apps/web/server/ens.ts`); a unit test keeps the two in sync. Either way, the server verifies the
-namespace's wiring on chain before enabling it.
+The four execution frames run atomically. The transaction is submitted through the **ERC-8421 alternative mempool**.
 
-## Deployed (shared devnet)
+The sponsor checks the transaction template, account, nonce, name availability, duration, payment and signature before authorizing it. The wallet supports registration for **1–5 whole years**, without commit-reveal. The account needs dUSDC for the name fee and no ETH for gas.
 
-| | Address |
+## Try it
+
+1. Open [Quantum Smart Wallet](https://quantum-smart-wallet.vercel.app/) and create or restore an account.
+2. Get test dUSDC from the wallet’s faucet.
+3. Open **Names**, choose an available name and registration duration.
+4. Confirm registration and follow the transaction link.
+
+An existing registration is **`qswmw56wsx5.qsw.eth`**, resolving to `0xc19245E98CAa3680179F81b8a0C8795810Cd5775`.
+
+[View its registration transaction](https://altmempool.bailo.london/explorer/chain/tx/0xfcf79147e658857dca200fb97c7f6af3b440298340fa3ebf798745fa7012a7ab).
+
+## Shared devnet addresses
+
+| Contract | Address |
 |---|---|
 | Root registry | `0xFE65cfc45b406F2D95d0de80a1eA89a7C6dE9c1C` |
 | `.eth` registry | `0x7f2DC8E732adb8C55AE9787c8ed4D78Ea7F35639` |
@@ -97,11 +64,6 @@ namespace's wiring on chain before enabling it.
 | UniversalResolverV2 | `0x6F36B098566f113021BB0eab239f0ba952c4b6CD` |
 | SimpleSubnameRegistrar | `0xc1784536C1dF5FBAAA705F4b51e542F14215E257` |
 | ENSVaultFactory | `0xA9aBbA3d31F832B3258955FA8aD0DB1B49A96e24` |
+| dUSDC | `0x3636a1d9A30C46264822F1A47975707793770F42` |
 
-All addresses and deployment transactions are listed in `deployments/shared-devnet.json`.
-
-**First live registration** (`apps/web/e2e/names.live.spec.ts`):
-
-- **Name:** `qswmw56wsx5.qsw.eth`, held by vault `0xB6a82373C7531d4064e3A7DFE398aa4c02d7Ae36` and resolving
-  to account `0xc19245E98CAa3680179F81b8a0C8795810Cd5775`.
-- **Transaction:** `0xfcf79147e658857dca200fb97c7f6af3b440298340fa3ebf798745fa7012a7ab`.
+All ENS contract addresses and deployment transactions are in [deployments/shared-devnet.json](deployments/shared-devnet.json). Vault and resolver addresses are specific to each account.

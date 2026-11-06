@@ -15,6 +15,7 @@ A native Ethereum wallet that replaces classical transaction authorization with 
 - [x] [TypeScript bindings: Rust WASM library](slhts/)
 - [x] [Solidity SLH-DSA signature verifier, native quantum smart account and factory](slhsol/)
 - [x] [Quantum-gated Uniswap v4 hook](slhsol/src/QuantumGuardHook.sol)
+- [x] [ENSv2 names, vaults and registrar](slhsol/ensv2/)
 - [x] [Web wallet](apps/web/)
 - [x] [Account creation, faucet and gas sponsorship backend deployment](apps/web/server/)
 - [x] [Devnet, alternative mempool, RPC, explorer deployments](infra/)
