@@ -154,7 +154,8 @@ export async function checkNames(config: EnsConfig, account: Address, vault: Add
     if (resolved) {
       try {
         const [result] = decodeFunctionResult({ abi: universalResolverAbi, functionName: "resolve", data: resolved });
-        const [address] = decodeFunctionResult({ abi: ADDR_ABI, functionName: "addr", data: result }) as unknown as [Address];
+        // A single-output function decodes to the value itself, not a one-element array.
+        const address = decodeFunctionResult({ abi: ADDR_ABI, functionName: "addr", data: result });
         resolvesTo = /^0x0{40}$/i.test(address) ? null : address;
       } catch {
         resolvesTo = null;
