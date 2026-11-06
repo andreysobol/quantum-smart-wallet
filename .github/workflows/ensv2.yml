@@ -5,12 +5,12 @@ permissions: {}
 on:
   push:
     paths:
-      - "ensv2/**"
+      - "slhsol/ensv2/**"
       - "slhsol/src/**"
       - ".github/workflows/ensv2.yml"
   pull_request:
     paths:
-      - "ensv2/**"
+      - "slhsol/ensv2/**"
       - "slhsol/src/**"
       - ".github/workflows/ensv2.yml"
   workflow_dispatch:
@@ -23,7 +23,7 @@ jobs:
       contents: read
     defaults:
       run:
-        working-directory: ensv2
+        working-directory: slhsol/ensv2
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -34,11 +34,11 @@ jobs:
       - name: Fetch the pinned contracts-v2 and its needed libraries
         working-directory: .
         run: |
-          git submodule update --init --checkout --depth 1 ensv2/lib/contracts-v2
+          git submodule update --init --checkout --depth 1 slhsol/ensv2/lib/contracts-v2
           for m in openzeppelin-contracts openzeppelin-contracts-upgradeable ens-contracts verifiable-factory forge-std buffer solsha1 openzeppelin-contracts-v4; do
-            git -C ensv2/lib/contracts-v2 submodule update --init --depth 1 "contracts/lib/$m"
+            git -C slhsol/ensv2/lib/contracts-v2 submodule update --init --depth 1 "contracts/lib/$m"
           done
-          test "$(git -C ensv2/lib/contracts-v2 rev-parse HEAD)" = 62778d80038e50cb23514eab1b7d66ceb8a41e1c
+          test "$(git -C slhsol/ensv2/lib/contracts-v2 rev-parse HEAD)" = 62778d80038e50cb23514eab1b7d66ceb8a41e1c
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1

@@ -49,7 +49,7 @@ def ens_entries(project, ens):
         address = ens[key]
         if not re.fullmatch(r"0x[0-9a-fA-F]{40}", address):
             raise ValueError("Invalid ENS deployment address: " + key)
-        abi = json.loads((project / "ensv2" / artifact).read_text())["abi"]
+        abi = json.loads((project / "slhsol/ensv2" / artifact).read_text())["abi"]
         if not isinstance(abi, list) or not abi:
             raise ValueError("Missing ENS artifact ABI: " + artifact)
         entries.append({"address": address, "name": name, "kind": "contract", "abi": abi,

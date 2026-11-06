@@ -4,10 +4,10 @@
 // .eth PermissionedRegistry, GatewayProvider, UniversalResolverV2), then adds qsw.eth: its own
 // PermissionedRegistry, the dUSDC SimpleSubnameRegistrar and the ENSVaultFactory. Every transaction uses
 // the devnet's own eth_estimateGas (its state gas is not modelled by Forge). Re-running resumes: each step
-// is skipped when the chain already shows its effect. Writes ensv2/deployments/shared-devnet.json and the
+// is skipped when the chain already shows its effect. Writes slhsol/ensv2/deployments/shared-devnet.json and the
 // `ens` section of slhsol/deployments/shared-devnet.json (the published manifest's source).
 //
-//   forge build && QSW_DEPLOYER_KEY_FILE=../.secrets/devnet-operator.json npm run deploy
+//   forge build && QSW_DEPLOYER_KEY_FILE=../../.secrets/devnet-operator.json npm run deploy
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import {
   createPublicClient,
@@ -26,7 +26,7 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 
 const ENSV2 = new URL("../", import.meta.url);
-const REPO = new URL("../", ENSV2);
+const REPO = new URL("../../", ENSV2);
 const RECORD = new URL("deployments/shared-devnet.json", ENSV2);
 const MANIFEST = new URL("slhsol/deployments/shared-devnet.json", REPO);
 const KEY_FILE = process.env.QSW_DEPLOYER_KEY_FILE ?? new URL(".secrets/devnet-operator.json", REPO).pathname;

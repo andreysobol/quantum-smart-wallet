@@ -86,7 +86,7 @@ QSW_LIVE=1 QSW_LIVE_URL=https://quantum-smart-wallet.vercel.app npx playwright t
 
 The **Names** tab registers `<label>.qsw.eth`. These are Devnet ENSv2 names on chain 81411338 only: they do
 not reserve public `.eth` names. The namespace and its contracts are described in
-[`ensv2/README.md`](../../ensv2/README.md).
+[`slhsol/ensv2/README.md`](../../slhsol/ensv2/README.md).
 
 **Typing a name.** The app normalizes it with ENSIP-15 and reads availability and the registrar's price.
 You choose 1–5 years.

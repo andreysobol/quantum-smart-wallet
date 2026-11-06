@@ -13,4 +13,4 @@ lib/contracts-v2/contracts/lib/ens-contracts/contracts/utils/LibMem/=lib/contrac
 lib/contracts-v2/contracts/lib/ens-contracts/:@openzeppelin/contracts=lib/contracts-v2/contracts/lib/openzeppelin-contracts-v4/contracts
 lib/contracts-v2/contracts/lib/ens-contracts/:@openzeppelin/contracts-v5=lib/contracts-v2/contracts/lib/openzeppelin-contracts/contracts
 lib/contracts-v2/contracts/lib/ens-contracts/:@ensdomains/solsha1/contracts=lib/contracts-v2/contracts/lib/solsha1/contracts
-quantum/=../slhsol/src/
+quantum/=../src/

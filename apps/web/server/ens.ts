@@ -10,7 +10,7 @@ const YEAR_SECONDS = 31_536_000;
 const REGISTRAR_ROLES = (1n << 0n) | (1n << 16n);
 
 /**
- * The `ens` section of slhsol/deployments/shared-devnet.json as deployed (ensv2/deployments). Used only
+ * The `ens` section of slhsol/deployments/shared-devnet.json as deployed (slhsol/ensv2/deployments). Used only
  * while the published manifest predates the namespace; it is verified on-chain exactly like the published one.
  */
 export const BUNDLED_ENS_SECTION = {

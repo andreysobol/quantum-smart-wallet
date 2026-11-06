@@ -1,6 +1,6 @@
 /**
  * Devnet ENSv2 ABIs (viem `as const`), the functions, events and errors the wallet uses, from the
- * Foundry artifacts of ensv2/ (official ensdomains/contracts-v2 @ 62778d8 plus ENSVault, ENSVaultFactory
+ * Foundry artifacts of slhsol/ensv2/ (official ensdomains/contracts-v2 @ 62778d8 plus ENSVault, ENSVaultFactory
  * and SimpleSubnameRegistrar).
  */
 

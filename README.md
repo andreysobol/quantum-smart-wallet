@@ -76,7 +76,7 @@ distinction between native execution and mempool admission.
 
 `qsw.eth` subnames on the shared devnet, built on the pinned official ENSv2 contracts and paid in dUSDC.
 Each QuantumAccount's names are held by its own `ENSVault`, which only the account controls, and resolve to
-the account. These are devnet names, not public `.eth` names. See [ensv2/README.md](ensv2/README.md).
+the account. These are devnet names, not public `.eth` names. See [slhsol/ensv2/README.md](slhsol/ensv2/README.md).
 
 ## Shared devnet
 
