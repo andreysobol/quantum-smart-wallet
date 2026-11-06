@@ -19,7 +19,6 @@ A native Ethereum wallet that replaces classical transaction authorization with 
 - [x] [Web wallet](apps/web/)
 - [x] [Account creation, faucet and gas sponsorship backend deployment](apps/web/server/)
 - [x] [Devnet, alternative mempool, RPC, explorer deployments](infra/)
-- [x] [Deployment and sponsored swap demo ????? ](demo/)
 - [x] [Cross-implementation validation: OpenSSL, rslh and slhts](eval/)
 
 # Try our wallet
