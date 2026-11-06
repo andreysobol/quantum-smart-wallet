@@ -25,6 +25,37 @@ CONTRACTS = [
     ("hookDeployer", "Hook CREATE2 deployer", "out/DeployDemo.s.sol/DemoHookDeployer.json", BASE + "slhsol/script/DeployDemo.s.sol", "Deploys the hook at an address with the required v4 permission bits."),
 ]
 
+# Devnet ENSv2 (qsw.eth): official contracts-v2 at the pinned tag, plus this repository's vault and registrar.
+ENS_V2 = "https://github.com/ensdomains/contracts-v2/blob/62778d80038e50cb23514eab1b7d66ceb8a41e1c/contracts/"
+ENS_BASE = "https://github.com/andreysobol/quantum-smart-wallet/blob/416fe40131065a7ec6c05a2acd4622ce71b440b4/"
+# key in the manifest's `ens` section, display name, ensv2 artifact, source URL, description
+ENS_CONTRACTS = [
+    ("rootRegistry", "Devnet ENSv2 root registry", "out/PermissionedRegistry.sol/PermissionedRegistry.json", ENS_V2 + "src/registry/PermissionedRegistry.sol", "Official ENSv2 PermissionedRegistry for the devnet root; points eth at the .eth registry."),
+    ("ethRegistry", "Devnet ENSv2 .eth registry", "out/PermissionedRegistry.sol/PermissionedRegistry.json", ENS_V2 + "src/registry/PermissionedRegistry.sol", "Official PermissionedRegistry for .eth; points qsw at the qsw.eth registry. Devnet only, not public .eth."),
+    ("qswRegistry", "qsw.eth registry", "out/PermissionedRegistry.sol/PermissionedRegistry.json", ENS_V2 + "src/registry/PermissionedRegistry.sol", "Official PermissionedRegistry holding qsw.eth subnames as ERC-1155 tokens owned by account vaults."),
+    ("registrar", "qsw.eth registrar", "out/SimpleSubnameRegistrar.sol/SimpleSubnameRegistrar.json", ENS_BASE + "ensv2/src/SimpleSubnameRegistrar.sol", "Fixed-price registrar from the ENSv2 tutorial pattern: 5 dUSDC per year, at least one year."),
+    ("vaultFactory", "ENSVaultFactory", "out/ENSVaultFactory.sol/ENSVaultFactory.json", ENS_BASE + "ensv2/src/ENSVaultFactory.sol", "One ENSVault per factory-created QuantumAccount: the vault holds its names, the account controls the vault."),
+    ("universalResolver", "Devnet ENSv2 UniversalResolverV2", "out/UniversalResolverV2.sol/UniversalResolverV2.json", ENS_V2 + "src/universalResolver/UniversalResolverV2.sol", "Official resolution entry point: resolves qsw.eth names through the registry tree."),
+    ("resolverImplementation", "PermissionedResolver implementation", "out/PermissionedResolver.sol/PermissionedResolver.json", ENS_V2 + "src/resolver/PermissionedResolver.sol", "Implementation behind each vault's own resolver proxy."),
+    ("verifiableFactory", "VerifiableFactory", "out/VerifiableFactory.sol/VerifiableFactory.json", "https://github.com/ensdomains/verifiable-factory/blob/c1090aec465ab30d494c96bd7d2a147b4f0b0173/src/VerifiableFactory.sol", "Deploys the vaults' resolver proxies."),
+    ("labelStore", "Devnet ENSv2 LabelStore", "out/LabelStore.sol/LabelStore.json", ENS_V2 + "src/utils/LabelStore.sol", "Stores registered labels for the devnet ENSv2 registries."),
+    ("contractNamer", "Devnet ENSv2 ContractNamer", "out/ContractNamer.sol/ContractNamer.json", ENS_V2 + "src/utils/ContractNamer.sol", "UUPS proxy of the official ContractNamer used by the registries and resolvers."),
+]
+
+
+def ens_entries(project, ens):
+    entries = []
+    for key, name, artifact, source, description in ENS_CONTRACTS:
+        address = ens[key]
+        if not re.fullmatch(r"0x[0-9a-fA-F]{40}", address):
+            raise ValueError("Invalid ENS deployment address: " + key)
+        abi = json.loads((project / "ensv2" / artifact).read_text())["abi"]
+        if not isinstance(abi, list) or not abi:
+            raise ValueError("Missing ENS artifact ABI: " + artifact)
+        entries.append({"address": address, "name": name, "kind": "contract", "abi": abi,
+                        "sourceUrl": source, "description": description})
+    return entries
+
 
 def build_registry(project, manifest):
     contracts = []
@@ -45,6 +76,8 @@ def build_registry(project, manifest):
                       "description": "Genesis predeploy holding alternative-mempool stakes."})
     contracts.append({"address": manifest["deployer"], "name": "Demo sponsor", "kind": "eoa", "abi": [],
                       "description": "Test-funded sponsor paying gas for the demo account."})
+    if "ens" in manifest:
+        contracts.extend(ens_entries(project, manifest["ens"]))
     addresses = [c["address"].lower() for c in contracts]
     if len(addresses) != len(set(addresses)):
         raise ValueError("Duplicate deployment address")
