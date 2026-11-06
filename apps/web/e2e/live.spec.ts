@@ -69,7 +69,7 @@ async function swap(page: Page): Promise<Hex> {
   const response = await sponsored;
   const body = (await response.json()) as { txHash?: Hex; error?: { message: string } };
   expect(response.status(), body.error?.message).toBe(200);
-  await expect(page.getByRole("heading", { name: "Proof", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Proof" })).toBeVisible();
   await expect(page.locator(".p-title")).toHaveText("Verified", { timeout: 240_000 });
   await expect(page.locator(".pfl .pf .pf-s")).toHaveText(["Approved", "Approved", "Done", "Done", "Done"]);
   return body.txHash as Hex;

@@ -14,13 +14,9 @@
 a.net{text-decoration:none}
 button.acct{appearance:none;background:none;border:0;cursor:pointer}
 .foot .err{margin-top:6px}
-/* Devnet ENSv2 names: year choice, progress states and the devnet notice, from design.css tokens. */
-.ens-tag{margin:0 0 clamp(18px,2.4vw,30px);color:var(--l3)}
+/* Devnet ENSv2 names: year choice, from design.css tokens. */
 .yrs{display:flex;flex-wrap:wrap;gap:4px}
 .yrs .tbtn{padding:0 10px}
-.fm.s-done{color:var(--l1)}
-.fm.s-now{color:var(--l3);animation:pulse 1.2s ease-in-out infinite}
-.fm.s-err{color:var(--sealt)}
 .ens-id{display:flex;flex-direction:column;align-items:center;gap:4px;max-width:100%}
 .ens-id .lab{color:var(--l3);text-align:center}
 .v-acct .ensn{margin:0;font-style:italic;font-size:clamp(22px,2.4vw,30px);line-height:1.15;text-align:center;overflow-wrap:anywhere;color:var(--ink)}
@@ -31,3 +27,7 @@ button.acct{appearance:none;background:none;border:0;cursor:pointer}
 @media (max-width:1000px){.terms.ens-terms > .btn.wide,.terms.ens-terms > [role="alert"]{order:-1}}
 /* A wallet name in the header chip: keep the chip one line and short on narrow screens. */
 .acct .mono{max-width:min(22ch,40vw);overflow:hidden;text-overflow:ellipsis}
+/* The full account address under a seal, readable in groups of four; first and last groups lit. */
+.serial-wrap.addr{flex-wrap:wrap;justify-content:center;align-items:baseline;gap:4px 9px;max-width:min(100%,25em);font-family:'Martian Mono',ui-monospace,Menlo,monospace;font-stretch:87.5%;font-size:clamp(14px,1.25vw,16px);line-height:1.5;letter-spacing:.04em;color:var(--ink);font-variant-numeric:tabular-nums}
+.serial-wrap.addr .ax{color:var(--ink2)}
+.serial-wrap.addr .hi{color:var(--sealt);font-weight:600;text-shadow:0 0 12px color-mix(in srgb,var(--l2) 60%,transparent)}

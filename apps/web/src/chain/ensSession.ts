@@ -18,6 +18,8 @@ export interface LiveRegistration {
   stage: SwapStage;
   state: StageState;
   message: string;
+  /** When the transaction reached the mempool (drives the hypertree while waiting). */
+  submittedAt: number | null;
   history: SwapProgress[];
   txHash: Hex | null;
   result: RegistrationReport | null;
@@ -76,6 +78,7 @@ export function startRegistration(
     stage: "quote",
     state: "active",
     message: `Checking ${name}`,
+    submittedAt: null,
     history: [],
     txHash: null,
     result: null,
@@ -91,6 +94,7 @@ export function startRegistration(
       message: progress.message,
       history: [...live.history, progress],
       txHash: progress.txHash ?? live.txHash,
+      submittedAt: live.submittedAt ?? (progress.stage === "submit" && progress.state === "done" ? Date.now() : null),
     });
   })
     .then((result) => {

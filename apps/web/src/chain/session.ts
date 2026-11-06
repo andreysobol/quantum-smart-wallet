@@ -28,7 +28,8 @@ export interface LiveSwap {
   running: boolean;
 }
 
-export type ProofSource = { kind: "live"; id: number } | { kind: "replay"; hash: Hex };
+/** What the Proof screen shows: the live swap, a past swap by hash, or the live name registration. */
+export type ProofSource = { kind: "live"; id: number } | { kind: "replay"; hash: Hex } | { kind: "ens"; id: number };
 
 export interface SessionState {
   live: LiveSwap | null;
@@ -110,6 +111,11 @@ export function startSwap(config: PublicConfig, wallet: WalletRecord, signer: Si
 /** Show a past swap on the Proof screen (loaded from chain by hash). */
 export function showReplay(hash: Hex) {
   publish({ ...state, view: { kind: "replay", hash } });
+}
+
+/** Show the live (or last) name registration on the Proof screen. */
+export function showRegistration(id: number) {
+  publish({ ...state, view: { kind: "ens", id } });
 }
 
 /** Point the Proof screen back at the live (or last) swap. */

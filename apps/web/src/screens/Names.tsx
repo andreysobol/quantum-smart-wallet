@@ -2,10 +2,9 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from "re
 import { checkLabel, durationFor } from "../../shared/ens.js";
 import type { Address } from "../../shared/types.js";
 import { formatDusdc, hasEns, loadNames, quoteName, registrationLabels, type NameQuote, type NameStatus, type OwnedNames } from "../chain/ens.js";
-import { clearRegistration, startRegistration, useRegistration } from "../chain/ensSession.js";
-import { explorerAddressUrl, explorerTxUrl } from "../chain/explorer.js";
-import type { SwapStage } from "../chain/types.js";
-import { CopyButton } from "../components/CopyButton.js";
+import { startRegistration, useRegistration } from "../chain/ensSession.js";
+import { explorerAddressUrl } from "../chain/explorer.js";
+import { showRegistration } from "../chain/session.js";
 import { Seal } from "../components/Seal.js";
 import { TokenMark } from "../components/TokenMark.js";
 import { TxLink } from "../components/TxLink.js";
@@ -16,27 +15,15 @@ import { useWallet } from "../state/wallet.js";
 const ERROR_STYLE = { color: "var(--sealt)" } as const;
 const REFRESH_MS = 30_000;
 const PLAN_MODES = ["VERIFY", "VERIFY", "SENDER", "SENDER", "SENDER", "SENDER"] as const;
-const STAGES: { stage: SwapStage; label: string }[] = [
-  { stage: "quote", label: "Availability and price" },
-  { stage: "build", label: "Six-frame transaction" },
-  { stage: "sign", label: "SLH-DSA signature in your browser" },
-  { stage: "sponsor", label: "Sponsor co-signs the gas" },
-  { stage: "submit", label: "Alternative mempool" },
-  { stage: "admission", label: "Admission checks" },
-  { stage: "inclusion", label: "Included in a block" },
-  { stage: "verified", label: "PQ validation on-chain" },
-  { stage: "settled", label: "Vault holds it · resolves to you" },
-];
 
 /** Character count for the name field; the stylesheet shrinks long names so they stay fully visible. */
 const fitChars = (text: string) => ({ "--chars": Math.max(text.length, 1) }) as CSSProperties;
 const dateOf = (seconds: number) => new Date(seconds * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-const n = (value: bigint | number) => value.toLocaleString("en-US");
 
 type Check = { label: string; quote: NameQuote | null; error: string | null };
 
 export function Names() {
-  const { wallet, config, signer } = useWallet();
+  const { wallet, config, signer, go } = useWallet();
   const registration = useRegistration();
   const selected = useSelectedName(wallet?.account);
   const [input, setInput] = useState("");
@@ -107,7 +94,6 @@ export function Names() {
   const maxYears = ens.ens.maxYears;
   const quote = check?.label === label ? check.quote : null;
   const running = !!registration?.running;
-  const showRun = !!registration && registration.account.toLowerCase() === wallet.account.toLowerCase();
   const price = quote?.price ?? (label ? BigInt(ens.ens.pricePerYear) * BigInt(years) : null);
   const expiry = Math.floor(Date.now() / 1000) + Number(durationFor(years));
   const sponsor = config.sponsor;
@@ -126,7 +112,7 @@ export function Names() {
 
   let action = label ? `Register ${label}.${namespace}` : "Register";
   let locked = false;
-  if (running) [action, locked] = ["Registration in progress…", true];
+  if (running) action = "View registration in progress";
   else if (!config.operatorReady || !sponsor) [action, locked] = ["Sponsor unavailable", true];
   else if (!label) [action, locked] = ["Type a name", true];
   else if (!quote) [action, locked] = [check?.error ? "Registrar unavailable" : "Checking…", true];
@@ -134,26 +120,26 @@ export function Names() {
   else if (quote.balance < quote.price) [action, locked] = [`Needs ${formatDusdc(quote.price)}`, true];
 
   const register = () => {
+    if (running && registration) {
+      showRegistration(registration.id);
+      return go("proof");
+    }
     if (locked || !label || !quote) return;
     try {
       setStartError(null);
-      clearRegistration();
-      startRegistration(ens, wallet, signer, { label, years }, quote.price, (report) => {
+      const started = startRegistration(ens, wallet, signer, { label, years }, quote.price, (report) => {
         if (!selected) selectName(wallet.account, report.name, true);
         void refreshOwned();
       });
+      showRegistration(started.id);
+      go("proof");
     } catch (e) {
       setStartError(e instanceof Error ? e.message : "Could not start the registration.");
     }
   };
 
-  const stageIndex = showRun ? STAGES.findIndex((s) => s.stage === registration!.stage) : -1;
-  const report = showRun ? registration!.result : null;
-  const runError = showRun ? registration!.error : null;
-
   return (
     <section className="scr">
-      <p className="lab ens-tag">Devnet ENSv2 · chain {config.chainId} · these names do not reserve public .eth names</p>
       <div className="x-grid">
         <div className="slip">
           <div className="half">
@@ -241,96 +227,28 @@ export function Names() {
               <dd className="mono">{sponsor ? `Sponsored · paid by ${short(sponsor)}` : "No sponsor"}</dd>
             </div>
           </dl>
-          {showRun && !running ? (
-            <button type="button" className="btn wide" onClick={() => clearRegistration()}>
-              Register another name
-            </button>
-          ) : (
-            <button type="button" className="btn wide" onClick={register} disabled={locked}>
-              {action}
-            </button>
-          )}
+          <button type="button" className="btn wide" onClick={register} disabled={locked}>
+            {action}
+          </button>
           {startError && (
             <p className="lab" role="alert" style={ERROR_STYLE}>
               {startError}
             </p>
           )}
-          {showRun ? (
-            <div className="frames">
-              <p className="lab">
-                {registration!.name} · {registration!.input.years} year{registration!.input.years === 1 ? "" : "s"}
-              </p>
-              <ol className="frl" aria-label="Registration progress">
-                {STAGES.map((s, i) => {
-                  const done = (!!report && !runError) || i < stageIndex || (i === stageIndex && registration!.state === "done");
-                  const failed = !!runError && i === stageIndex;
-                  const now = i === stageIndex && running && !done;
-                  const word = failed ? "Failed" : done ? "Done" : now ? "Now" : "—";
-                  return (
-                    <li key={s.stage} className="fr" aria-current={now ? "step" : undefined}>
-                      <span className="fi mono">{i + 1}</span>
-                      <span className={`fm mono ${failed ? "s-err" : done ? "s-done" : now ? "s-now" : "m-default"}`}>{word}</span>
-                      <span className="fd">{s.label}</span>
-                    </li>
-                  );
-                })}
-              </ol>
-              <p className={`mono ${running ? "status" : ""}`} aria-live="polite" role={runError ? "alert" : undefined} style={runError ? ERROR_STYLE : { fontSize: 13, margin: 0, color: "var(--ink2)" }}>
-                {runError ?? registration!.message}
-              </p>
-            </div>
-          ) : (
-            <div className="frames">
-              <p className="lab">1 transaction · {frameLabels.length} frames · one atomic batch</p>
-              <ol className="frl">
-                {frameLabels.map((frame, i) => (
-                  <li key={i} className="fr">
-                    <span className="fi mono">{i}</span>
-                    <span className={`fm mono m-${(PLAN_MODES[i] ?? "SENDER").toLowerCase()}`}>{PLAN_MODES[i]}</span>
-                    <span className="fd">{frame}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
-        </div>
-      </div>
-      {showRun && (registration!.txHash || report) && (
-        <div className="receipt">
-          <div className="rc-wrap">
-            {registration!.txHash && (
-              <div className="txline">
-                <span className="lab">Transaction</span>
-                <TxLink href={report?.explorerTxUrl ?? explorerTxUrl(config, registration!.txHash, { frame: true })} label={`View transaction ${registration!.txHash} on the explorer`}>
-                  {registration!.txHash.slice(0, 10)}…{registration!.txHash.slice(-6)}
-                </TxLink>
-                <CopyButton text={registration!.txHash} label="Copy hash" />
-              </div>
-            )}
-            {report && (
-              <dl className="rc">
-                {[
-                  { k: "Name", v: report.name },
-                  { k: "Paid", v: report.status === "success" ? `${formatDusdc(report.paid)} (quoted ${formatDusdc(report.quotedPrice)})` : "Nothing · reverted" },
-                  { k: "Token owner", v: report.check?.owner ? `Vault ${short(report.check.owner)}` : "—" },
-                  { k: "Controller", v: `Account ${short(wallet.account)}` },
-                  { k: "Resolves to", v: report.check?.resolvesTo ? short(report.check.resolvesTo) : "—" },
-                  { k: "Expires", v: report.check?.expiry ? dateOf(report.check.expiry) : "—" },
-                  { k: "Block", v: n(report.blockNumber) },
-                  { k: "Paid by", v: `${short(report.payer)}${report.payer.toLowerCase() === report.sponsor.toLowerCase() ? " (sponsor)" : ""}` },
-                  { k: "PQ validation", v: report.pqValidationGas !== null ? `${n(report.pqValidationGas)} gas (frame 0)` : "—" },
-                  { k: "Admission", v: report.admission ? `${report.admission.checksPassed}/${report.admission.checksTotal} checks · ${report.admission.outcome}` : "No longer held by the mempool" },
-                ].map((row) => (
-                  <div key={row.k}>
-                    <dt className="lab">{row.k}</dt>
-                    <dd className="mono">{row.v}</dd>
-                  </div>
-                ))}
-              </dl>
-            )}
+          <div className="frames">
+            <p className="lab">1 transaction · {frameLabels.length} frames · one atomic batch</p>
+            <ol className="frl">
+              {frameLabels.map((frame, i) => (
+                <li key={i} className="fr">
+                  <span className="fi mono">{i}</span>
+                  <span className={`fm mono m-${(PLAN_MODES[i] ?? "SENDER").toLowerCase()}`}>{PLAN_MODES[i]}</span>
+                  <span className="fd">{frame}</span>
+                </li>
+              ))}
+            </ol>
           </div>
         </div>
-      )}
+      </div>
       <section className="ledger" aria-labelledby="nm-h">
         <h3 id="nm-h">Your names</h3>
         {ownedError && (

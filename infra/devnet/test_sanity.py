@@ -262,6 +262,13 @@ class ExplorerRegistryTests(unittest.TestCase):
         self.assertEqual(registry["poolKey"], manifest["poolKey"])
         # V4 pools are singleton state, not contract addresses.
         self.assertNotIn(manifest["poolId"].lower(), by_address)
+        # Devnet ENSv2 (qsw.eth): every published namespace contract is listed with its ABI and source.
+        for field in ("rootRegistry", "ethRegistry", "qswRegistry", "registrar", "vaultFactory", "universalResolver",
+                      "resolverImplementation", "verifiableFactory", "labelStore", "contractNamer"):
+            entry = by_address[manifest["ens"][field].lower()]
+            self.assertEqual(entry["kind"], "contract")
+            self.assertGreater(len(entry["abi"]), 0)
+            self.assertTrue(entry["sourceUrl"].startswith("https://github.com/"))
 
 
 class PublicAssetCacheTests(unittest.TestCase):

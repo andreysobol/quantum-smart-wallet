@@ -1,4 +1,4 @@
-// The Names section on the operator-less dev server: the namespace is verified on the real devnet, names are
+// The Names section on the operator-less dev server: the Devnet ENSv2 namespace is verified on the real devnet, names are
 // normalized and quoted from the registrar, and the 6-frame plan names the vault as token owner and the
 // account as controller. Nothing is signed or sent (this server has no sponsor).
 // QSW_SHOTS_DIR=<dir> also writes desktop and phone screenshots.
@@ -39,7 +39,6 @@ test("names: devnet label, normalization, availability, price and the vault plan
   expect(config.ens).toMatchObject({ label: "Devnet ENSv2", namespace: "qsw.eth", pricePerYear: "5000000", maxYears: 5 });
 
   await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: "Names" }).click();
-  await expect(page.getByText("Devnet ENSv2 · chain 81411338 · these names do not reserve public .eth names")).toBeVisible();
   await expect(page.getByText("No names yet.", { exact: false })).toBeVisible({ timeout: 30_000 });
 
   const field = page.getByLabel("Name", { exact: true });
