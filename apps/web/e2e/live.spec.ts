@@ -114,8 +114,10 @@ test("create a factory account, verify its backup, mint test dUSDC and swap both
   expect(createReceipt.status).toBe("0x1");
   test.info().annotations.push({ type: "account", description: account.account }, { type: "create tx", description: String(account.txHash) });
 
-  // 2. Verified backup.
-  await page.getByRole("button", { name: "Back up" }).click();
+  // 2. Straight to the portfolio, then a verified backup from its link.
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.locator(".v-grid")).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Back up your key" }).click();
   await page.getByLabel("Passphrase", { exact: true }).fill(PASS);
   await page.getByLabel("Repeat passphrase").fill(PASS);
   const downloading = page.waitForEvent("download");

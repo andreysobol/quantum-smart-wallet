@@ -239,13 +239,15 @@ test("engrave: unavailable operator and a registered seal", async ({ page }) => 
   await sweep(page, "engrave-unavailable", "main .btn:not(.ghost)");
 });
 
-test("engrave done, backup plate and check", async ({ page }) => {
+test("engrave done, then backup plate and check from the portfolio", async ({ page }) => {
   const config = await openApp(page);
   await routeRpc(page, config, { register: true });
   await page.getByRole("button", { name: "Create wallet" }).click();
   await expect(page.getByRole("heading", { name: "Your seal", exact: true })).toBeVisible({ timeout: 60_000 });
   await sweep(page, "engrave-done", "main .btn:not(.ghost)");
-  await page.getByRole("button", { name: "Back up" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.locator(".v-grid")).toBeVisible();
+  await page.getByRole("button", { name: "Back up your key" }).click();
   await expect(page.getByRole("heading", { name: "Back up", exact: true })).toBeVisible();
   await sweep(page, "backup-plate", "main .btn:not(.ghost)", { minHeight: 600 });
   await page.getByLabel("Passphrase", { exact: true }).fill(PASS);
