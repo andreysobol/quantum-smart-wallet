@@ -53,6 +53,17 @@ function canonical(data: Hex, reencoded: Hex, label: string): void {
   if (lower(data) !== lower(reencoded)) fail(`${label}: non-canonical ABI encoding`);
 }
 
+/** Calldata sizes of the template: the approvals take only static arguments and the swap carries no hook data. */
+const TEMPLATE_BYTES = { erc20Approve: 68, permit2Approve: 132, guardedSwap: 1124 } as const;
+
+/**
+ * Checked before decoding: the generic ABI decoder follows offsets taken from the data, and
+ * overlapping dynamic elements make it materialise far more bytes than it was given.
+ */
+function templateSize(data: Hex, bytes: number, label: string): void {
+  if (data.length !== 2 + 2 * bytes) fail(`${label}: non-canonical ABI encoding (expected ${bytes} bytes, got ${(data.length - 2) / 2})`);
+}
+
 // ---------------------------------------------------------------------------
 // Calldata codecs
 // ---------------------------------------------------------------------------
@@ -94,6 +105,7 @@ export function encodeErc20Approve({ spender, amount }: Erc20Approve): Hex {
 }
 
 export function decodeErc20Approve(data: Hex): Erc20Approve {
+  templateSize(data, TEMPLATE_BYTES.erc20Approve, "ERC20 approve");
   const { args } = decodeFunctionData({ abi: ERC20_APPROVE_ABI, data });
   const out = { spender: lower(args[0]), amount: args[1] };
   canonical(data, encodeErc20Approve(out), "ERC20 approve");
@@ -116,6 +128,7 @@ export function encodePermit2Approve({ token, spender, amount, expiration }: Per
 }
 
 export function decodePermit2Approve(data: Hex): Permit2Approve {
+  templateSize(data, TEMPLATE_BYTES.permit2Approve, "Permit2 approve");
   const { args } = decodeFunctionData({ abi: PERMIT2_APPROVE_ABI, data });
   const out = { token: lower(args[0]), spender: lower(args[1]), amount: args[2], expiration: BigInt(args[3]) };
   canonical(data, encodePermit2Approve(out), "Permit2 approve");
@@ -187,9 +200,11 @@ export function encodeGuardedSwap(swap: GuardedSwap): Hex {
  * Decode and require the exact guarded-swap template: one V4_SWAP command, actions
  * SWAP_EXACT_IN_SINGLE/SETTLE_ALL/TAKE_ALL, settle = (input currency, amountIn),
  * take = (output currency, amountOutMinimum). The router pays/takes for its
- * msgSender() (the account): there is no recipient field to redirect.
+ * msgSender() (the account): there is no recipient field to redirect. Only the
+ * wallet's encoding without hook data (exactly 1,124 bytes) is accepted.
  */
 export function decodeGuardedSwap(data: Hex): DecodedGuardedSwap {
+  templateSize(data, TEMPLATE_BYTES.guardedSwap, "guarded swap");
   const { args } = decodeFunctionData({ abi: EXECUTE_ABI, data });
   const [commands, inputs, deadline] = args;
   if (lower(commands) !== UNIVERSAL_ROUTER_V4_SWAP) fail(`commands must be ${UNIVERSAL_ROUTER_V4_SWAP} (V4_SWAP)`);
