@@ -13,15 +13,12 @@ A native Ethereum wallet that replaces classical transaction authorization with 
 
 - [x] [Rust post-quantum (SLH-DSA-SHA2-128s) cryptography library and CLI](rslh/)
 - [x] [TypeScript bindings: Rust WASM library](slhts/)
-- [x] [On-chain SLH-DSA signature verifier](slhsol/src/SlhDsaSha2_128s.sol)
-- [x] [Native quantum smart account](slhsol/src/QuantumAccount.sol)
-- [x] [Quantum account factory](slhsol/src/QuantumAccountFactory.sol)
+- [x] [Solidity SLH-DSA signature verifier, native quantum smart account and factory](slhsol/)
 - [x] [Quantum-gated Uniswap v4 hook](slhsol/src/QuantumGuardHook.sol)
 - [x] [Web wallet](apps/web/)
 - [x] [Account creation, faucet and gas sponsorship backend deployment](apps/web/server/)
-- [x] [Devnet and alternative mempool infrastructure deployment](infra/devnet/)
-- [x] [RPC gateway and explorer deployment](infra/gateway/)
-- [x] [Deployment and sponsored swap demo](demo/)
+- [x] [Devnet, alternative mempool, RPC, explorer deployments](infra/)
+- [x] [Deployment and sponsored swap demo ????? ](demo/)
 - [x] [Cross-implementation validation: OpenSSL, rslh and slhts](eval/)
 
 # Try our wallet
