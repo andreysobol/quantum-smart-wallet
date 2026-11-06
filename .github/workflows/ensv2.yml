@@ -1,0 +1,50 @@
+name: ensv2
+
+permissions: {}
+
+on:
+  push:
+    paths:
+      - "ensv2/**"
+      - "slhsol/src/**"
+      - ".github/workflows/ensv2.yml"
+  pull_request:
+    paths:
+      - "ensv2/**"
+      - "slhsol/src/**"
+      - ".github/workflows/ensv2.yml"
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: Devnet ENSv2 contracts
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ensv2
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      # contracts-v2 is `update = none` so other workflows' recursive checkouts skip it; fetch only the
+      # pinned commit and the libraries these contracts compile against.
+      - name: Fetch the pinned contracts-v2 and its needed libraries
+        working-directory: .
+        run: |
+          git submodule update --init --checkout --depth 1 ensv2/lib/contracts-v2
+          for m in openzeppelin-contracts openzeppelin-contracts-upgradeable ens-contracts verifiable-factory forge-std buffer solsha1 openzeppelin-contracts-v4; do
+            git -C ensv2/lib/contracts-v2 submodule update --init --depth 1 "contracts/lib/$m"
+          done
+          test "$(git -C ensv2/lib/contracts-v2 rev-parse HEAD)" = 62778d80038e50cb23514eab1b7d66ceb8a41e1c
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Run Forge build
+        run: forge build --sizes
+
+      - name: Run Forge tests
+        run: forge test -vvv

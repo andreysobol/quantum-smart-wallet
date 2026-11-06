@@ -22,3 +22,4 @@
 [submodule "ensv2/lib/contracts-v2"]
 	path = ensv2/lib/contracts-v2
 	url = https://github.com/ensdomains/contracts-v2.git
+	update = none

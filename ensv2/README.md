@@ -69,7 +69,7 @@ The web app builds it (`apps/web/shared/ens.ts`). The sponsor co-signs it only a
 ## Build, test, deploy
 
 ```sh
-git submodule update --init ensv2/lib/contracts-v2
+git submodule update --init --checkout --depth 1 ensv2/lib/contracts-v2   # skipped by recursive updates
 for m in openzeppelin-contracts openzeppelin-contracts-upgradeable ens-contracts verifiable-factory forge-std buffer solsha1 openzeppelin-contracts-v4; do
   git -C ensv2/lib/contracts-v2 submodule update --init --depth 1 contracts/lib/$m
 done
