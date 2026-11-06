@@ -18,3 +18,11 @@
 input.amt{min-height:44px}
 .acct .mono{white-space:nowrap}
 @media (hover:none){.flip:hover{transform:translate(-50%,-50%)}}
+
+/* Amounts shrink to stay whole instead of being cut off; --chars is set from the rendered value. */
+.half{container-type:inline-size}
+.amt{font-size:max(24px,min(clamp(46px,5.8vw,90px),calc((100cqi - 132px) / (max(var(--chars,1),5) * .62))))}
+@container (max-width:300px){
+  .amt-row{flex-wrap:wrap;row-gap:10px}
+  .amt{font-size:max(24px,min(46px,calc(100cqi / (max(var(--chars,1),5) * .62))))}
+}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { formatEther } from "viem";
 import { loadPoolState, quoteExactIn, type PoolState } from "../../shared/quote.js";
 import type { SwapDirection } from "../../shared/types.js";
@@ -27,6 +27,9 @@ const REFRESH_MS = 15_000;
 const EST_SWAP_GAS = 1_730_000n;
 const ERROR_STYLE = { color: "var(--sealt)" } as const;
 const MARK: Record<TokenKey, "USDC" | "WETH"> = { usdc: "USDC", weth: "WETH" };
+
+/** Character count for the amount fields; the stylesheet shrinks long amounts so they stay fully visible. */
+const fitChars = (text: string) => ({ "--chars": Math.max(text.length, 1) }) as CSSProperties;
 
 export function Exchange() {
   const { wallet, config, signer, go } = useWallet();
@@ -96,6 +99,7 @@ export function Exchange() {
   }, [pool, direction, amountIn]);
 
   if (!wallet || !config) return null;
+  const receiveText = quote ? formatToken(quote.amountOut, to) : "0";
   const fromSym = tokenSymbol(config, from);
   const toSym = tokenSymbol(config, to);
   const balance = balances ? (from === "usdc" ? balances.usdc : balances.weth) : null;
@@ -170,8 +174,10 @@ export function Exchange() {
                 className="amt"
                 type="text"
                 inputMode="decimal"
+                enterKeyHint="done"
                 placeholder="0"
                 value={amount}
+                style={fitChars(amount || "0")}
                 onChange={(e) => onAmt(e.target.value)}
                 autoComplete="off"
               />
@@ -197,8 +203,8 @@ export function Exchange() {
           <div className="half recv">
             <p className="lab">You receive</p>
             <div className="amt-row">
-              <p className="amt" aria-live="polite">
-                {quote ? formatToken(quote.amountOut, to) : "0"}
+              <p className="amt" aria-live="polite" style={fitChars(receiveText)}>
+                {receiveText}
               </p>
               <span className="tok">
                 <TokenMark sym={MARK[to]} small />
