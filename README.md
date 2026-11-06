@@ -9,6 +9,8 @@ Imagine waking up tomorrow and discovering that the cryptography protecting your
 
 A native Ethereum wallet that replaces classical transaction authorization with SLH-DSA-SHA2-128s, a post-quantum signature algorithm standardized by NIST. Using EIP-8141 and ERC-8421, we demonstrate post-quantum transactions with native validation and alternative mempool support. You can send assets, trade tokens, and register ENS names, all authorized by post-quantum signatures.
 
+## What Was Built
+
 - [x] [Rust post-quantum (SLH-DSA-SHA2-128s) cryptography library and CLI](rslh/)
 - [x] [WebAssembly and TypeScript rust wasm binding library](slhts/)
 - [x] [On-chain SLH-DSA signature verifier](slhsol/src/SlhDsaSha2_128s.sol)
