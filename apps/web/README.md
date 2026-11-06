@@ -4,8 +4,8 @@ A browser wallet for the [shared devnet](../../README.md#shared-devnet) (chain 8
 wallet is a `QuantumAccount` that validates SLH-DSA-SHA2-128s signatures natively under EIP-8141.
 
 - **Keys in the browser.** `slhts` (rslh compiled to WebAssembly) generates keys and signs in a
-  module Web Worker. Instead of a seed phrase, you export a passphrase-encrypted backup file and
-  prove you can restore it.
+  module Web Worker. A new wallet opens straight on the portfolio. Instead of a seed phrase, you
+  back up from there: export a passphrase-encrypted backup file and prove you can restore it.
 - **Operator-created accounts.** The server's operator key creates the account through
   `QuantumAccountFactory`, pays its 0.012 ETH alternative-mempool stake, and mints test dUSDC
   from the faucet.
