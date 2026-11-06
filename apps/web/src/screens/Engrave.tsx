@@ -27,12 +27,8 @@ export function Engrave() {
     go("genesis");
   };
   const proceed = () => {
-    if (state.mode === "restore") {
-      finishOnboarding();
-      go("portfolio");
-    } else {
-      go("backup");
-    }
+    finishOnboarding();
+    go("portfolio");
   };
   const stake = state.stakeEth ?? "0.012";
 
@@ -122,7 +118,7 @@ export function Engrave() {
             ) : (
               <div className="row">
                 <button className="btn" onClick={proceed}>
-                  {state.mode === "restore" ? "Continue" : "Back up"}
+                  Continue
                 </button>
               </div>
             )}

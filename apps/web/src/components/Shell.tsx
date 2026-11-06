@@ -32,7 +32,7 @@ export function Header() {
   const goHome = () => {
     if (screen === "engrave") return;
     if (wallet && onboarded) go("portfolio");
-    // Mid-onboarding with a fresh wallet (backup), stay put rather than offer "Create wallet" again.
+    // A stored wallet that is not open yet (e.g. Genesis after a cancelled engraving): stay put.
     else if (!wallet || screen === "restore") go("genesis");
   };
   const explorer = config ? (account ? explorerAddressUrl(config, account.account) : explorerBase(config)) : null;
