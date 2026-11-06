@@ -1,10 +1,13 @@
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
+import { formatUnits } from "../shared/format.js";
 import { RpcError } from "../shared/rpc.js";
 import type { Address, Hex } from "../shared/types.js";
 import { ApiFailure } from "./http.js";
 import type { Rpc } from "./manifest.js";
 
 const MIN_GAS_PRICE = 1_000_000_000n;
+/** The devnet quotes far below the 1 gwei floor; a quote above this means a broken or hostile RPC. */
+const MAX_GAS_PRICE = 10_000_000_000n;
 /** EIP-7825 per-transaction gas cap pinned on the devnet. */
 const MAX_TX_GAS = 16_777_216n;
 const RETRYABLE = /nonce too low|already known|underpriced|replacement transaction|nonce.*(used|lower)/i;
@@ -63,6 +66,9 @@ export class Operator {
     const gas = estimate * 12n / 10n > estimate + 50_000n ? estimate * 12n / 10n : estimate + 50_000n;
     if (gas > MAX_TX_GAS) throw new ApiFailure(502, "upstream_error", "The transaction exceeds the devnet's per-transaction gas cap.");
     const quoted = BigInt(await this.rpc.call<Hex>("eth_gasPrice"));
+    if (quoted > MAX_GAS_PRICE) {
+      throw new ApiFailure(503, "operator_unavailable", `The devnet gas price (${formatUnits(quoted, 9, 2)} gwei) is above this server's ${formatUnits(MAX_GAS_PRICE, 9)} gwei limit. Please try again later.`);
+    }
     let gasPrice = quoted > MIN_GAS_PRICE ? quoted : MIN_GAS_PRICE;
     let hash: Hex | null = null;
     for (let attempt = 0; attempt < 3 && !hash; attempt++) {
@@ -73,6 +79,7 @@ export class Operator {
       } catch (error) {
         if (!(error instanceof RpcError) || !RETRYABLE.test(error.message) || attempt === 2) throw error;
         gasPrice = (gasPrice * 11n) / 10n + 1n;
+        if (gasPrice > MAX_GAS_PRICE) gasPrice = MAX_GAS_PRICE;
       }
     }
     if (!hash) throw new ApiFailure(502, "upstream_error", "The operator transaction could not be submitted.");
