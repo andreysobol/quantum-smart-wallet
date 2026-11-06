@@ -72,3 +72,9 @@ See the [deployed contract addresses](slhsol/deployments/shared-devnet.json). Ad
 show live balances, bytecode and mined transactions involving each address;
 contract ABIs are published from the deployment artifacts. The Pool and Activity
 tabs show alternative-mempool admission separately from chain history.
+
+## AI Disclosure
+
+The core cryptography, signature verification, smart contracts, and account abstraction logic were designed and written by humans. AI assisted with infrastructure, DevNet deployment, alternative mempool integration, frontend development, styling, automation, and documentation. We believe security-critical code deserves human craftsmanship, while AI helps accelerate everything around it.
+
+[Read our AI Usage Disclosure](AI.md).
