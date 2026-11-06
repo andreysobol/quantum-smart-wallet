@@ -9,11 +9,36 @@ Imagine waking up tomorrow and discovering that the cryptography protecting your
 
 A native Ethereum wallet that replaces classical transaction authorization with SLH-DSA-SHA2-128s, a post-quantum signature algorithm standardized by NIST. Using EIP-8141 and ERC-8421, we demonstrate post-quantum transactions with native validation and alternative mempool support. You can send assets, trade tokens, and register ENS names, all authorized by post-quantum signatures.
 
+- [x] [Rust post-quantum (SLH-DSA-SHA2-128s) cryptography library and CLI](rslh/)
+- [x] [WebAssembly and TypeScript rust wasm binding library](slhts/)
+- [x] [On-chain SLH-DSA signature verifier](slhsol/src/SlhDsaSha2_128s.sol)
+- [x] [Native quantum smart account](slhsol/src/QuantumAccount.sol)
+- [x] [Quantum account factory](slhsol/src/QuantumAccountFactory.sol)
+- [x] [Quantum-gated Uniswap v4 hook](slhsol/src/QuantumGuardHook.sol)
+- [x] [Web wallet](apps/web/)
+- [x] [Account creation, faucet and gas sponsorship backend deployment](apps/web/server/)
+- [x] [Devnet and alternative mempool infrastructure deployment](infra/devnet/)
+- [x] [RPC gateway and explorer deployment](infra/gateway/)
+- [x] [Deployment and sponsored swap demo](demo/)
+- [x] [Cross-implementation validation: OpenSSL, rslh and slhts](eval/)
+
 ## SLH-DSA-SHA2-128s
 
 [FIPS 205: Stateless Hash-Based Digital Signature Standard](https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.205.pdf)
 
 NIST’s FIPS 205 defines SLH-DSA, a stateless, hash-based digital signature algorithm derived from SPHINCS+. Its SLH-DSA-SHA2-128s variant uses SHA-256 and prioritizes smaller signatures. The standard specifies key generation, signing, and verification for authenticating data with resistance to quantum computing attacks.
+
+## EIP-8141
+
+[EIP-8141: Frame Transaction](https://eips.ethereum.org/EIPS/eip-8141)
+
+EIP-8141 proposes native account abstraction through transactions composed of separate validation, gas payment, and execution frames. It allows smart accounts to define custom authorization logic, including post-quantum signature verification, while supporting key rotation, batched operations, and sponsored transaction fees.
+
+## ERC-8421
+
+[ERC-8421: Frame Transaction Alternative Mempools](https://ethereum-magicians.org/t/erc-8421-frame-transaction-alternative-mempools/29800)
+
+ERC-8421 proposes alternative mempool rules for EIP-8141 frame transactions. It defines a framework for transaction admission and propagation outside the default public mempool, with validation restrictions designed to resist denial-of-service attacks while accommodating more flexible smart-account validation policies.
 
 ## slhsol — native quantum account
 
