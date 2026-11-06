@@ -208,8 +208,16 @@ test("create wallet: worker key and seal, operator-less error with retry, mocked
   );
   await expect(engraved.locator(".l-pk textPath")).toContainText(`PK ${publicKey}`);
 
-  // 3. Backup: passphrase, encrypted download, then the check re-reads that file through the file chooser.
-  await page.getByRole("button", { name: "Back up" }).click();
+  // 3. Continue goes straight to the portfolio, not backed up yet; the backup starts from its link there.
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.locator(".v-grid")).toBeVisible();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("qsw.wallet.v1") ?? "null") as unknown)).toMatchObject({
+    publicKey,
+    backedUp: false,
+  });
+
+  // 4. Backup: passphrase, encrypted download, then the check re-reads that file through the file chooser.
+  await page.getByRole("button", { name: "Back up your key" }).click();
   await expect(page.getByRole("heading", { name: "Back up", exact: true })).toBeVisible();
   await page.getByLabel("Passphrase", { exact: true }).fill(PASS);
   await page.getByLabel("Repeat passphrase").fill(PASS);
@@ -245,7 +253,7 @@ test("create wallet: worker key and seal, operator-less error with retry, mocked
   expect((stored as WalletRecord).account.toLowerCase()).toBe(account.toLowerCase());
   expect(errors).toEqual([]);
 
-  // 4. Restore on a fresh device (new context: empty IndexedDB and localStorage) from that file.
+  // 5. Restore on a fresh device (new context: empty IndexedDB and localStorage) from that file.
   const device = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
   try {
     const fresh = await device.newPage();
