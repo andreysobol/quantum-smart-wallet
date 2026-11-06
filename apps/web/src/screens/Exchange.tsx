@@ -127,7 +127,8 @@ export function Exchange() {
   const setMax = () => {
     if (balance === null) return;
     const max = balance < cap ? balance : cap;
-    setAmount(rawToInput(max, TOKEN_DECIMALS[from], TOKEN_DP[from]));
+    // Full token precision: display rounding here would leave dust behind on "sell everything".
+    setAmount(rawToInput(max, TOKEN_DECIMALS[from], TOKEN_DECIMALS[from]));
   };
   const flip = () => {
     setDirection(direction === "USDC_TO_WETH" ? "WETH_TO_USDC" : "USDC_TO_WETH");
