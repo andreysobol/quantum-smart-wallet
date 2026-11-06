@@ -14,7 +14,7 @@ import {
   waitingTreeProgress,
   type FrameRunState,
 } from "../chain/proof.js";
-import { useSession } from "../chain/session.js";
+import { showLive, useSession } from "../chain/session.js";
 import { loadSwapReport, PLAN_MODES, revertMessage, tokenSymbol, type SwapReport } from "../chain/swap.js";
 import type { FrameView } from "../chain/types.js";
 import { CopyButton } from "../components/CopyButton.js";
@@ -67,6 +67,9 @@ export function Proof() {
   const view = session.view ?? (proofTx ? { kind: "replay" as const, hash: proofTx.hash } : null);
   const live = view?.kind === "live" && session.live?.id === view.id ? session.live : null;
   const replayHash: Hex | null = view?.kind === "replay" ? view.hash : null;
+  // A replay of another transaction hides the live (or last) swap: offer the way back to it.
+  const hiddenLive =
+    replayHash && session.live && session.live.txHash?.toLowerCase() !== replayHash.toLowerCase() ? session.live : null;
 
   const [loaded, setLoaded] = useState<{ hash: Hex; report: SwapReport | null; error: string | null } | null>(null);
   const [clock, setClock] = useState({ t: 0, playing: false, slow: false });
@@ -163,7 +166,7 @@ export function Proof() {
       signing: live.stage === "sign" && live.state === "active",
       stamped: pastVerify && !failed,
       done: failed,
-      title: failed ? "Not completed" : (PHASES[phase]?.title ?? ""),
+      title: failed ? (live.unresolved ? "Status unknown" : "Not completed") : (PHASES[phase]?.title ?? ""),
       sub: live.message,
     };
   } else {
@@ -199,6 +202,11 @@ export function Proof() {
           Proof
         </h2>
         <div className="pf-ctl">
+          {hiddenLive && (
+            <button type="button" className="tbtn" onClick={showLive}>
+              {hiddenLive.running ? "Back to live swap" : "Back to last swap"}
+            </button>
+          )}
           <button type="button" className="tbtn" onClick={togglePlay} disabled={!canReplay}>
             {playLabel}
           </button>
@@ -281,13 +289,14 @@ export function Proof() {
             )}
             {!report && error && live && (
               <p className="lab">
-                Failed at the {live.stage} step. {live.txHash ? "" : "Nothing was sent to the network."} Swap amount{" "}
+                {live.unresolved ? "Outcome unknown" : "Failed"} at the {live.stage} step. {live.txHash ? "" : "Nothing was sent to the network."} Swap amount{" "}
                 {formatToken(live.input.amountIn, tokenIn(live.input.direction))} {tokenSymbol(config, tokenIn(live.input.direction))}.
               </p>
             )}
           </div>
           <div className="row">
-            {error && live && (
+            {/* No way back to a retry while the transaction may still land: that could swap twice. */}
+            {error && live && !live.unresolved && (
               <button type="button" className="btn ghost" onClick={() => go("exchange")}>
                 Back to exchange
               </button>
