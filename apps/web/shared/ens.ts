@@ -29,12 +29,17 @@ export const ETH_COIN_TYPE = 60n;
 /** NameCoder: a DNS label is at most 255 bytes. */
 export const MAX_LABEL_BYTES = 255;
 
-/** Per-frame gas limits of the registration (execution / state gas). */
+/**
+ * Per-frame gas limits of the registration (execution / state gas). Measured on the shared devnet for a
+ * first registration (tx 0x813b0326…, 11-character label): createVault 117,295 / 3,369,060, approve
+ * 17,325 / 0, register 134,516 / 489,600, setAddress 52,245 / 293,760. Each extra 32 bytes of label adds a
+ * 97,920 state-gas slot to register and setAddress, so those are sized for a 255-byte label.
+ */
 export const ENS_FRAME_LIMITS = {
-  createVault: { execution: 1_500_000n, state: 6_000_000n },
-  approve: { execution: 80_000n, state: 200_000n },
-  register: { execution: 1_500_000n, state: 3_000_000n },
-  setAddress: { execution: 400_000n, state: 1_000_000n },
+  createVault: { execution: 250_000n, state: 4_500_000n },
+  approve: { execution: 60_000n, state: 120_000n },
+  register: { execution: 400_000n, state: 1_500_000n },
+  setAddress: { execution: 200_000n, state: 1_200_000n },
 } as const satisfies Record<string, FrameLimits>;
 
 export class EnsCodecError extends Error {
