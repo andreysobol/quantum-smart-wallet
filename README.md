@@ -57,9 +57,6 @@ The reproducible demo stack uses chain **81411338** and the pinned ethrex
 
 - [Devnet and persistent node setup](infra/devnet/README.md)
 - [Public RPC gateway and explorer routing](infra/gateway/README.md)
-- [Uniswap v4 deployment](slhsol/deployments/README.md)
-- [WASM-signed sponsored swap example](demo/README.md)
-- [Web wallet app and Vercel deployment](apps/web/README.md)
 
 The shared deployment exposes:
 
@@ -70,10 +67,8 @@ The shared deployment exposes:
 | Explorer | https://altmempool.bailo.london/explorer/ |
 | Contract addresses and ABIs | https://altmempool.bailo.london/explorer/contracts |
 | Mined transaction history | https://altmempool.bailo.london/explorer/chain |
-| Frontend deployment manifest | https://altmempool.bailo.london/deployment.json |
 
-See the [verified sponsored swap](demo/evidence/shared-devnet/report.json) and
-[deployed contract addresses](slhsol/deployments/shared-devnet.json). Address pages
+See the [deployed contract addresses](slhsol/deployments/shared-devnet.json). Address pages
 show live balances, bytecode and mined transactions involving each address;
 contract ABIs are published from the deployment artifacts. The Pool and Activity
 tabs show alternative-mempool admission separately from chain history.
