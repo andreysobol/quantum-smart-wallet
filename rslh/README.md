@@ -4,22 +4,6 @@
 
 NIST’s FIPS 205 defines SLH-DSA, a stateless, hash-based digital signature algorithm derived from SPHINCS+. Its SLH-DSA-SHA2-128s variant uses SHA-256 and prioritizes smaller signatures. The standard specifies key generation, signing, and verification for authenticating data with resistance to quantum computing attacks.
 
-## slhsol — native quantum account
-
-`QuantumAccount` uses SLH-DSA-SHA2-128s signatures and the onchain verifier for
-EIP-8141 native validation. It supports key rotation, native SENDER operations and
-optional constructor staking for the ERC-8421 alternative mempool. It targets the
-Mumbai ethrex devnet profile, chain ID 1337.
-
-See [the contract guide](slhsol/QUANTUM_ACCOUNT.md) for signing, deployment, tests and the
-distinction between native execution and mempool admission.
-
-## ensv2 — Devnet ENSv2 names
-
-`qsw.eth` subnames on the shared devnet, built on the pinned official ENSv2 contracts and paid in dUSDC.
-Each QuantumAccount's names are held by its own `ENSVault`, which only the account controls, and resolve to
-the account. These are devnet names, not public `.eth` names. See [ensv2/README.md](ensv2/README.md).
-
 ## rslh — SLH-DSA
 
 Rust implementation of SLH-DSA-SHA2-128s and SLH-DSA-SHAKE-128s with a small CLI.
