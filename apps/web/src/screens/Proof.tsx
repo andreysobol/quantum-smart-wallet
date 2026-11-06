@@ -72,7 +72,7 @@ export function Proof() {
     replayHash && session.live && session.live.txHash?.toLowerCase() !== replayHash.toLowerCase() ? session.live : null;
 
   const [loaded, setLoaded] = useState<{ hash: Hex; report: SwapReport | null; error: string | null } | null>(null);
-  const [clock, setClock] = useState({ t: 0, playing: false, slow: false });
+  const [clock, setClock] = useState({ t: 0, playing: false });
   const [now, setNow] = useState(() => Date.now());
   const timeline = useMemo(() => replayTimeline(5), []);
 
@@ -82,7 +82,7 @@ export function Proof() {
     const own = session.live?.result;
     if (own && own.txHash.toLowerCase() === replayHash.toLowerCase()) {
       setLoaded({ hash: replayHash, report: own, error: null });
-      setClock({ t: 0, playing: true, slow: false });
+      setClock({ t: 0, playing: true });
       return;
     }
     let alive = true;
@@ -91,7 +91,7 @@ export function Proof() {
       .then((report) => {
         if (!alive) return;
         setLoaded({ hash: replayHash, report, error: null });
-        setClock({ t: 0, playing: true, slow: false });
+        setClock({ t: 0, playing: true });
       })
       .catch((e: unknown) => alive && setLoaded({ hash: replayHash, report: null, error: e instanceof Error ? e.message : "Could not load this transaction." }));
     return () => {
@@ -99,9 +99,9 @@ export function Proof() {
     };
   }, [replayHash, config, wallet, session.live?.result]);
 
-  // A just-finished live swap lands on its final frame; "Replay" restarts the clock.
+  // A just-finished live swap lands on its final frame; a replay plays once when it opens.
   useEffect(() => {
-    if (live?.result) setClock({ t: timeline.total, playing: false, slow: false });
+    if (live?.result) setClock({ t: timeline.total, playing: false });
   }, [live?.result, timeline.total]);
 
   useEffect(() => {
@@ -109,7 +109,7 @@ export function Proof() {
     const id = setInterval(
       () =>
         setClock((c) => {
-          const t = Math.min(timeline.total, c.t + TICK_MS * (c.slow ? 0.25 : 1));
+          const t = Math.min(timeline.total, c.t + TICK_MS);
           return { ...c, t, playing: t < timeline.total };
         }),
       TICK_MS,
@@ -187,39 +187,9 @@ export function Proof() {
   const stampBlock = report ? report.blockNumber : typeof includedAt === "number" ? includedAt : null;
   const paths = treePaths(geometry, d.tree);
   const locked = d.tree >= 1;
-  const canReplay = !!report && !(live?.running ?? false);
-  const playLabel = !canReplay ? "Live" : clock.playing ? "Pause" : clock.t >= timeline.total ? "Replay" : "Play";
-  const togglePlay = () => {
-    if (!canReplay) return;
-    if (clock.t >= timeline.total) setClock((c) => ({ ...c, t: 0, playing: true }));
-    else setClock((c) => ({ ...c, playing: !c.playing }));
-  };
 
   return (
-    <section className="scr" aria-labelledby="p-h">
-      <div className="head">
-        <h2 className="s-h" id="p-h">
-          Proof
-        </h2>
-        <div className="pf-ctl">
-          {hiddenLive && (
-            <button type="button" className="tbtn" onClick={showLive}>
-              {hiddenLive.running ? "Back to live swap" : "Back to last swap"}
-            </button>
-          )}
-          <button type="button" className="tbtn" onClick={togglePlay} disabled={!canReplay}>
-            {playLabel}
-          </button>
-          <button
-            type="button"
-            className="tbtn"
-            onClick={() => setClock((c) => ({ ...c, slow: !c.slow }))}
-            aria-pressed={clock.slow ? "true" : "false"}
-          >
-            ¼ speed
-          </button>
-        </div>
-      </div>
+    <section className="scr" aria-label="Proof">
       <ol className="rail" aria-label="Phases">
         {PHASES.map((p, i) => (
           <li key={p.name} className={`ph ${(d.done && !error) || i < d.phase ? "done" : i === d.phase ? "now" : ""}`}>
@@ -263,6 +233,11 @@ export function Proof() {
           <p className="p-sub mono" aria-live="polite" role={error ? "alert" : undefined} style={error ? ERROR_STYLE : undefined}>
             {error ?? d.sub}
           </p>
+          {hiddenLive && (
+            <button type="button" className="tbtn" onClick={showLive}>
+              {hiddenLive.running ? "Back to live swap" : "Back to last swap"}
+            </button>
+          )}
         </div>
       </div>
       {(d.done || error) && (

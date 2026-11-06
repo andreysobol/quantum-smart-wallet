@@ -358,7 +358,7 @@ test("portfolio, exchange and proof replay show the demo account's real devnet d
   // Proof replay of the demo swap, rebuilt from the chain: frames, PQ validation in frame 0, the block.
   await nav.getByRole("button", { name: "Portfolio" }).click();
   await page.getByRole("button", { name: "Replay proof" }).first().click();
-  await expect(page.getByRole("heading", { name: "Proof", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Proof" })).toBeVisible();
   await expect(page.locator(".pfl .pf")).toHaveCount(5, { timeout: 30_000 });
   await expect(page.locator(".pfl .pf .pf-t")).toHaveText([
     "Check your SLH-DSA signature",
