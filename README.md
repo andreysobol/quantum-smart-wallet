@@ -29,6 +29,7 @@ The reproducible demo stack uses chain **81411338** and the pinned ethrex
 - [Public RPC gateway and explorer routing](infra/gateway/README.md)
 - [Uniswap v4 deployment](slhsol/deployments/README.md)
 - [WASM-signed sponsored swap example](demo/README.md)
+- [Web wallet app and Vercel deployment](apps/web/README.md)
 
 `QuantumAccountFactory` registers only the accounts it deploys. `QuantumGuardHook`
 accepts swaps from those accounts through the pinned Universal Router. It has no
