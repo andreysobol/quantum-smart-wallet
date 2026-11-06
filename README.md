@@ -1,5 +1,7 @@
 # Quantum Smart Wallet
 
+[APP](https://quantum-smart-wallet.vercel.app/)
+
 An Ethereum Smart Wallet using hash based post-quantum signatures, onchain verification, and native account abstraction via EIP-8141 and ERC-8421.
 
 > ⚠️ Research/educational code — not audited. Do not use it to protect real funds.
